@@ -16,9 +16,15 @@ const emptyForm: FacilityForm = {
   name: '', description: '', type: 'room', capacity: '', is_whole_hall: false, active: true, color: '#2563eb',
 }
 
-function TypeBadge({ type }: { type: string }) {
-  const cls = type === 'room' ? 'badge-room' : type === 'equipment' ? 'badge-equipment' : 'badge-service'
-  return <span className={cls}>{type}</span>
+function TypeBadge({ type, color }: { type: string; color?: string }) {
+  return (
+    <span
+      className="text-xs px-2 py-0.5 rounded-full font-medium text-white capitalize"
+      style={{ backgroundColor: color || '#2563eb' }}
+    >
+      {type}
+    </span>
+  )
 }
 
 export default function AdminFacilities() {
@@ -97,15 +103,6 @@ export default function AdminFacilities() {
     }
   }
 
-  const toggleActive = async (f: Facility) => {
-    try {
-      await client.put(`/facilities/${f.id}`, { active: f.active === 0 })
-      await load()
-    } catch {
-      alert('Failed to toggle facility status')
-    }
-  }
-
   const handleDelete = async (f: Facility) => {
     if (!confirm(`Permanently delete "${f.name}"? This cannot be undone.`)) return
     try {
@@ -138,7 +135,6 @@ export default function AdminFacilities() {
                   <th className="text-left px-4 py-3 text-gray-600 font-medium">Type</th>
                   <th className="text-left px-4 py-3 text-gray-600 font-medium hidden sm:table-cell">Description</th>
                   <th className="text-left px-4 py-3 text-gray-600 font-medium hidden md:table-cell">Capacity</th>
-                  <th className="text-left px-4 py-3 text-gray-600 font-medium">Status</th>
                   <th className="text-right px-4 py-3 text-gray-600 font-medium">Actions</th>
                 </tr>
               </thead>
@@ -146,33 +142,30 @@ export default function AdminFacilities() {
                 {facilities.map(f => (
                   <tr key={f.id} className={`hover:bg-gray-50 ${f.active === 0 ? 'opacity-50' : ''}`}>
                     <td className="px-4 py-3">
-                      <div className="flex items-center gap-2">
-                        <div className="w-3 h-3 rounded-full flex-shrink-0" style={{ backgroundColor: f.color || '#2563eb' }} />
-                        <div className="font-medium">{f.name}</div>
-                      </div>
+                      <div className="font-medium">{f.name}</div>
                       {f.is_whole_hall === 1 && (
-                        <span className="text-xs text-indigo-600 ml-5">Whole Hall</span>
+                        <span className="text-xs text-indigo-600">Whole Hall</span>
                       )}
                     </td>
-                    <td className="px-4 py-3"><TypeBadge type={f.type} /></td>
+                    <td className="px-4 py-3"><TypeBadge type={f.type} color={f.color} /></td>
                     <td className="px-4 py-3 text-gray-500 hidden sm:table-cell max-w-xs truncate">
                       {f.description || '—'}
                     </td>
                     <td className="px-4 py-3 text-gray-500 hidden md:table-cell">
                       {f.capacity ? `${f.capacity} people` : '—'}
                     </td>
-                    <td className="px-4 py-3">
-                      <button
-                        onClick={() => toggleActive(f)}
-                        className={`badge cursor-pointer ${f.active ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-600'}`}
-                      >
-                        {f.active ? 'Active' : 'Inactive'}
-                      </button>
-                    </td>
                     <td className="px-4 py-3 text-right">
                       <div className="flex items-center justify-end gap-2">
-                        <button onClick={() => openEdit(f)} className="btn-secondary btn-sm">Edit</button>
-                        <button onClick={() => handleDelete(f)} className="btn-danger btn-sm">Delete</button>
+                        <button onClick={() => openEdit(f)} title="Edit" className="p-1.5 text-gray-500 hover:text-primary-700 hover:bg-gray-100 rounded transition-colors">
+                          <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                          </svg>
+                        </button>
+                        <button onClick={() => handleDelete(f)} title="Delete" className="p-1.5 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded transition-colors">
+                          <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                          </svg>
+                        </button>
                       </div>
                     </td>
                   </tr>
