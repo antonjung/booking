@@ -63,7 +63,7 @@ export default function BookingsList() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h1>
-          {user?.role === 'booker' ? 'My Bookings' : 'All Bookings'}
+          All Bookings
         </h1>
         {user?.role !== 'admin' && (
           <Link to="/bookings/new" className="btn-primary">
@@ -134,9 +134,7 @@ export default function BookingsList() {
                   <th className="text-left px-4 py-3 text-gray-600 font-medium">Date & Time</th>
                   <th className="text-left px-4 py-3 text-gray-600 font-medium">Facility</th>
                   <th className="text-left px-4 py-3 text-gray-600 font-medium">Duration</th>
-                  {user?.role !== 'booker' && (
-                    <th className="text-left px-4 py-3 text-gray-600 font-medium">Booker</th>
-                  )}
+                  <th className="text-left px-4 py-3 text-gray-600 font-medium">Booker</th>
                   <th className="text-left px-4 py-3 text-gray-600 font-medium">Status</th>
                   <th className="text-right px-4 py-3 text-gray-600 font-medium">Action</th>
                 </tr>
@@ -150,14 +148,12 @@ export default function BookingsList() {
                     </td>
                     <td className="px-4 py-3 font-medium">{b.facility_name}</td>
                     <td className="px-4 py-3 text-gray-500">{slotsToLabel(b.duration_slots)}</td>
-                    {user?.role !== 'booker' && (
-                      <td className="px-4 py-3">
-                        <div>{b.booker_name}</div>
-                        {b.booker_organisation && (
-                          <div className="text-xs text-gray-500">{b.booker_organisation}</div>
-                        )}
-                      </td>
-                    )}
+                    <td className="px-4 py-3">
+                      <div>{b.booker_name}</div>
+                      {b.booker_organisation && (
+                        <div className="text-xs text-gray-500">{b.booker_organisation}</div>
+                      )}
+                    </td>
                     <td className="px-4 py-3">
                       <StatusBadge status={b.status} />
                     </td>
@@ -182,9 +178,7 @@ export default function BookingsList() {
                     <p className="text-sm text-gray-500">
                       {format(new Date(b.date), 'd MMM yyyy')} · {b.start_time} · {slotsToLabel(b.duration_slots)}
                     </p>
-                    {user?.role !== 'booker' && (
-                      <p className="text-xs text-gray-400 mt-1">{b.booker_name}</p>
-                    )}
+                    <p className="text-xs text-gray-400 mt-1">{b.booker_name}</p>
                   </div>
                   <StatusBadge status={b.status} />
                 </div>

@@ -94,12 +94,6 @@ router.get('/', authenticateToken, (req: Request, res: Response): void => {
   `;
   const params: (string | number)[] = [];
 
-  // Bookers only see their own bookings
-  if (user.role === 'booker') {
-    query += ' AND b.booker_id = ?';
-    params.push(user.userId);
-  }
-
   if (date) {
     query += ' AND b.date = ?';
     params.push(date as string);
