@@ -65,4 +65,7 @@ db.exec(`
   );
 `);
 
+// Migrations
+try { db.exec('ALTER TABLE facilities ADD COLUMN color TEXT'); } catch { /* already exists */ }
+
 export default db;

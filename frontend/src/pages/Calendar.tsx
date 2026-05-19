@@ -24,6 +24,8 @@ const WEEK_DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
 const TOTAL_HEIGHT = (HOUR_END - HOUR_START) * 2 * SLOT_PX
 
 function getFacilityColor(facilityId: number, facilities: Facility[]) {
+  const f = facilities.find(f => f.id === facilityId)
+  if (f?.color) return f.color
   const idx = facilities.findIndex(f => f.id === facilityId)
   return PALETTE[Math.max(0, idx) % PALETTE.length]
 }

@@ -9,10 +9,11 @@ interface FacilityForm {
   capacity: string
   is_whole_hall: boolean
   active: boolean
+  color: string
 }
 
 const emptyForm: FacilityForm = {
-  name: '', description: '', type: 'room', capacity: '', is_whole_hall: false, active: true,
+  name: '', description: '', type: 'room', capacity: '', is_whole_hall: false, active: true, color: '#2563eb',
 }
 
 function TypeBadge({ type }: { type: string }) {
@@ -59,6 +60,7 @@ export default function AdminFacilities() {
       capacity: f.capacity ? String(f.capacity) : '',
       is_whole_hall: f.is_whole_hall === 1,
       active: f.active === 1,
+      color: f.color || '#2563eb',
     })
     setFormError('')
     setShowModal(true)
@@ -77,6 +79,7 @@ export default function AdminFacilities() {
         capacity: form.capacity ? parseInt(form.capacity) : undefined,
         is_whole_hall: form.is_whole_hall,
         active: form.active,
+        color: form.color,
       }
 
       if (editFacility) {
@@ -100,6 +103,17 @@ export default function AdminFacilities() {
       await load()
     } catch {
       alert('Failed to toggle facility status')
+    }
+  }
+
+  const handleDelete = async (f: Facility) => {
+    if (!confirm(`Permanently delete "${f.name}"? This cannot be undone.`)) return
+    try {
+      await client.delete(`/facilities/${f.id}`)
+      await load()
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error
+      alert(msg || 'Failed to delete facility.')
     }
   }
 
@@ -132,9 +146,12 @@ export default function AdminFacilities() {
                 {facilities.map(f => (
                   <tr key={f.id} className={`hover:bg-gray-50 ${f.active === 0 ? 'opacity-50' : ''}`}>
                     <td className="px-4 py-3">
-                      <div className="font-medium">{f.name}</div>
+                      <div className="flex items-center gap-2">
+                        <div className="w-3 h-3 rounded-full flex-shrink-0" style={{ backgroundColor: f.color || '#2563eb' }} />
+                        <div className="font-medium">{f.name}</div>
+                      </div>
                       {f.is_whole_hall === 1 && (
-                        <span className="text-xs text-indigo-600">Whole Hall</span>
+                        <span className="text-xs text-indigo-600 ml-5">Whole Hall</span>
                       )}
                     </td>
                     <td className="px-4 py-3"><TypeBadge type={f.type} /></td>
@@ -153,7 +170,10 @@ export default function AdminFacilities() {
                       </button>
                     </td>
                     <td className="px-4 py-3 text-right">
-                      <button onClick={() => openEdit(f)} className="btn-secondary btn-sm">Edit</button>
+                      <div className="flex items-center justify-end gap-2">
+                        <button onClick={() => openEdit(f)} className="btn-secondary btn-sm">Edit</button>
+                        <button onClick={() => handleDelete(f)} className="btn-danger btn-sm">Delete</button>
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -210,6 +230,22 @@ export default function AdminFacilities() {
                     className="input"
                     placeholder="People"
                   />
+                </div>
+              </div>
+
+              <div>
+                <label className="label">Pill Colour</label>
+                <div className="flex items-center gap-3">
+                  <input
+                    type="color"
+                    value={form.color}
+                    onChange={e => setForm(f => ({ ...f, color: e.target.value }))}
+                    className="h-9 w-14 rounded border border-gray-300 cursor-pointer p-0.5"
+                  />
+                  <span className="text-sm text-gray-500 font-mono">{form.color}</span>
+                  <div className="text-xs px-2 py-1 rounded-full text-white font-medium" style={{ backgroundColor: form.color }}>
+                    Preview
+                  </div>
                 </div>
               </div>
 

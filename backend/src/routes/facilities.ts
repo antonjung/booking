@@ -18,7 +18,7 @@ router.get('/all', authenticateToken, requireRole('admin'), (req: Request, res: 
 
 // POST /api/facilities — create facility (admin only)
 router.post('/', authenticateToken, requireRole('admin'), (req: Request, res: Response): void => {
-  const { name, description, type, capacity, is_whole_hall } = req.body;
+  const { name, description, type, capacity, is_whole_hall, color } = req.body;
 
   if (!name || !type) {
     res.status(400).json({ error: 'name and type are required' });
@@ -32,9 +32,9 @@ router.post('/', authenticateToken, requireRole('admin'), (req: Request, res: Re
 
   try {
     const result = db.prepare(`
-      INSERT INTO facilities (name, description, type, capacity, is_whole_hall)
-      VALUES (?, ?, ?, ?, ?)
-    `).run(name, description || null, type, capacity || null, is_whole_hall ? 1 : 0);
+      INSERT INTO facilities (name, description, type, capacity, is_whole_hall, color)
+      VALUES (?, ?, ?, ?, ?, ?)
+    `).run(name, description || null, type, capacity || null, is_whole_hall ? 1 : 0, color || null);
 
     const newFacility = db.prepare('SELECT * FROM facilities WHERE id = ?').get(result.lastInsertRowid);
     res.status(201).json(newFacility);
@@ -47,7 +47,7 @@ router.post('/', authenticateToken, requireRole('admin'), (req: Request, res: Re
 // PUT /api/facilities/:id — update facility (admin only)
 router.put('/:id', authenticateToken, requireRole('admin'), (req: Request, res: Response): void => {
   const { id } = req.params;
-  const { name, description, type, capacity, is_whole_hall, active } = req.body;
+  const { name, description, type, capacity, is_whole_hall, active, color } = req.body;
 
   const facility = db.prepare('SELECT * FROM facilities WHERE id = ?').get(id);
   if (!facility) {
@@ -68,6 +68,7 @@ router.put('/:id', authenticateToken, requireRole('admin'), (req: Request, res: 
   if (capacity !== undefined) updates.capacity = capacity;
   if (is_whole_hall !== undefined) updates.is_whole_hall = is_whole_hall ? 1 : 0;
   if (active !== undefined) updates.active = active ? 1 : 0;
+  if (color !== undefined) updates.color = color || null;
 
   if (Object.keys(updates).length === 0) {
     res.status(400).json({ error: 'No fields to update' });
@@ -87,7 +88,7 @@ router.put('/:id', authenticateToken, requireRole('admin'), (req: Request, res: 
   }
 });
 
-// DELETE /api/facilities/:id — deactivate facility (admin only, sets active=0)
+// DELETE /api/facilities/:id — permanently delete (admin only; blocked if bookings exist)
 router.delete('/:id', authenticateToken, requireRole('admin'), (req: Request, res: Response): void => {
   const { id } = req.params;
 
@@ -97,8 +98,14 @@ router.delete('/:id', authenticateToken, requireRole('admin'), (req: Request, re
     return;
   }
 
-  db.prepare('UPDATE facilities SET active = 0 WHERE id = ?').run(id);
-  res.json({ message: 'Facility deactivated' });
+  const bookingCount = (db.prepare('SELECT COUNT(*) as n FROM bookings WHERE facility_id = ?').get(id) as { n: number }).n;
+  if (bookingCount > 0) {
+    res.status(409).json({ error: `Cannot delete: ${bookingCount} booking(s) reference this facility. Deactivate it instead.` });
+    return;
+  }
+
+  db.prepare('DELETE FROM facilities WHERE id = ?').run(id);
+  res.json({ message: 'Facility deleted' });
 });
 
 export default router;

@@ -19,6 +19,7 @@ export interface Facility {
   capacity?: number;
   is_whole_hall: number;
   active: number;
+  color?: string;
   created_at: string;
 }
 

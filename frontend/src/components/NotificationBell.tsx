@@ -4,17 +4,42 @@ import client from '../api/client'
 import { AppNotification } from '../types'
 import { formatDistanceToNow } from 'date-fns'
 
+function playPing() {
+  try {
+    const ctx = new AudioContext()
+    const osc = ctx.createOscillator()
+    const gain = ctx.createGain()
+    osc.connect(gain)
+    gain.connect(ctx.destination)
+    osc.type = 'sine'
+    osc.frequency.setValueAtTime(880, ctx.currentTime)
+    osc.frequency.exponentialRampToValueAtTime(660, ctx.currentTime + 0.15)
+    gain.gain.setValueAtTime(0.3, ctx.currentTime)
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.4)
+    osc.start(ctx.currentTime)
+    osc.stop(ctx.currentTime + 0.4)
+  } catch {
+    // AudioContext unavailable
+  }
+}
+
 export default function NotificationBell() {
   const [count, setCount] = useState(0)
   const [notifications, setNotifications] = useState<AppNotification[]>([])
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
+  const prevCount = useRef<number | null>(null)
   const navigate = useNavigate()
 
   const fetchCount = async () => {
     try {
       const res = await client.get('/notifications/count')
-      setCount(res.data.count)
+      const newCount: number = res.data.count
+      if (prevCount.current !== null && newCount > prevCount.current) {
+        playPing()
+      }
+      prevCount.current = newCount
+      setCount(newCount)
     } catch {
       // silently fail
     }
