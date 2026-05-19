@@ -1,0 +1,10 @@
+node_modules/
+dist/
+backend/data/
+*.db
+*.db-shm
+*.db-wal
+.env
+.env.local
+.env.production
+.env.*.local
