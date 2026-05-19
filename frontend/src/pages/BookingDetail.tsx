@@ -129,20 +129,20 @@ export default function BookingDetail() {
           <InfoField label="Start Time" value={booking.start_time} />
           <InfoField label="End Time" value={booking.end_time || '—'} />
           <InfoField label="Duration" value={slotsToLabel(booking.duration_slots)} />
+          <InfoField label="Booked by" value={booking.booker_name} />
+          {booking.booker_organisation && (
+            <InfoField label="Organisation" value={booking.booker_organisation} />
+          )}
           {booking.notes && <InfoField label="Notes" value={booking.notes} wide />}
         </dl>
       </div>
 
-      {/* Booker info (controllers/admins see this) */}
+      {/* Booker contact info (controllers/admins only) */}
       {isController && (
         <div className="card">
-          <h2 className="mb-4">Booker Information</h2>
+          <h2 className="mb-4">Booker Contact</h2>
           <dl className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <InfoField label="Name" value={booking.booker_name} />
             <InfoField label="Email" value={booking.booker_email} />
-            {booking.booker_organisation && (
-              <InfoField label="Organisation" value={booking.booker_organisation} />
-            )}
           </dl>
         </div>
       )}

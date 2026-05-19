@@ -69,15 +69,20 @@ export default function Dashboard() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1>Welcome back, {user?.name}</h1>
-          <p className="text-gray-500 text-sm mt-1">
-            {format(new Date(), 'EEEE, d MMMM yyyy')}
-          </p>
+      {/* Hero */}
+      <div className="bg-gradient-to-br from-primary-700 to-primary-900 rounded-2xl p-6 text-white flex items-center gap-5">
+        <div className="flex-shrink-0">
+          <svg className="h-16 w-16 text-primary-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
+              d="M8 14v3m4-3v3m4-3v3M3 21h18M3 10h18M3 7l9-4 9 4M4 10h16v11H4V10z" />
+          </svg>
+        </div>
+        <div className="flex-1 min-w-0">
+          <h1 className="text-white text-2xl font-bold">Welcome, {user?.name}</h1>
+          <p className="text-primary-200 text-sm mt-0.5">{format(new Date(), 'EEEE, d MMMM yyyy')}</p>
         </div>
         {user?.role !== 'admin' && (
-          <Link to="/bookings/new" className="btn-primary">
+          <Link to="/bookings/new" className="flex-shrink-0 bg-white text-primary-800 font-semibold text-sm px-4 py-2 rounded-lg hover:bg-primary-50 transition-colors">
             + New Booking
           </Link>
         )}
