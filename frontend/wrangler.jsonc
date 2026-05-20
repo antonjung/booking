@@ -1,6 +1,7 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "pirtonbooking",
+  "pages_build_output_dir": "dist",
   "compatibility_date": "2026-05-19",
   "observability": {
     "enabled": true
