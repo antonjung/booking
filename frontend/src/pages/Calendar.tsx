@@ -96,8 +96,12 @@ export default function Calendar() {
 
   const filteredBookings = useMemo(() => {
     if (!facilityFilter) return activeBookings
+    const selectedFacility = facilities.find(f => f.id === facilityFilter)
     const wholeHallIds = new Set(facilities.filter(f => f.is_whole_hall === 1).map(f => f.id))
-    return activeBookings.filter(b => b.facility_id === facilityFilter || wholeHallIds.has(b.facility_id))
+    return activeBookings.filter(b =>
+      b.facility_id === facilityFilter ||
+      (selectedFacility?.type === 'room' && wholeHallIds.has(b.facility_id))
+    )
   }, [activeBookings, facilityFilter, facilities])
 
   const bookingsByDate = useMemo(() => {
@@ -432,7 +436,7 @@ function MonthView({ currentDate, bookingsByDate, facilities, todayMidnight, onB
                         onClick={e => { e.stopPropagation(); onBookingClick(b.id) }}
                         title={`${b.facility_name} · ${b.start_time}–${b.end_time} · ${bookerLabel(b)}${b.status === 'pending' ? ' (pending)' : ''}`}
                         style={{ backgroundColor: color, opacity: b.status === 'pending' ? 0.5 : 1 }}
-                        className="h-2 rounded cursor-pointer hover:opacity-80 transition-opacity"
+                        className="h-6 rounded cursor-pointer hover:opacity-80 transition-opacity"
                       />
                     )
                   })}
