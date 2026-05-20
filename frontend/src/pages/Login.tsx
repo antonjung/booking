@@ -94,7 +94,7 @@ export default function Login() {
           Default admin login: admin / admin123
         </p>
         <p className="text-center text-xs text-gray-300 mt-2">
-          v1.0.5 · api: {import.meta.env.VITE_API_URL || '(relative)'}
+          v1.0.6 · api: {import.meta.env.VITE_API_URL || '(relative)'}
         </p>
       </div>
     </div>

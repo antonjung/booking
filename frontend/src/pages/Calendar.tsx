@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   format, startOfMonth, endOfMonth, startOfWeek, endOfWeek,
@@ -7,7 +7,7 @@ import {
 } from 'date-fns'
 import client from '../api/client'
 import { useAuth } from '../contexts/AuthContext'
-import { Booking, Facility, User } from '../types'
+import { Booking, Facility } from '../types'
 
 type View = 'month' | 'week' | 'day' | 'list'
 
@@ -52,6 +52,15 @@ function bookerLabel(b: Booking) {
   return b.booker_organisation ? `${b.booker_name} · ${b.booker_organisation}` : b.booker_name
 }
 
+function yToTime(offsetY: number): string {
+  const slotIndex = Math.round(offsetY / SLOT_PX)
+  const clamped = Math.max(0, Math.min((HOUR_END - HOUR_START) * 2 - 1, slotIndex))
+  const totalMinutes = HOUR_START * 60 + clamped * 30
+  const h = Math.floor(totalMinutes / 60)
+  const m = totalMinutes % 60
+  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`
+}
+
 // ─── Main component ───────────────────────────────────────────────────────────
 
 export default function Calendar() {
@@ -62,6 +71,16 @@ export default function Calendar() {
   const [bookings, setBookings] = useState<Booking[]>([])
   const [facilities, setFacilities] = useState<Facility[]>([])
   const [loading, setLoading] = useState(true)
+  const [facilityFilter, setFacilityFilter] = useState<number | null>(null)
+  const touchStartX = useRef<number | null>(null)
+  const touchStartY = useRef<number | null>(null)
+
+  const loadBookings = async () => {
+    try {
+      const res = await client.get('/bookings')
+      setBookings(res.data)
+    } catch {}
+  }
 
   useEffect(() => {
     Promise.all([client.get('/bookings'), client.get('/facilities')])
@@ -72,9 +91,14 @@ export default function Calendar() {
 
   const activeBookings = useMemo(() => bookings.filter(b => b.status !== 'denied'), [bookings])
 
+  const filteredBookings = useMemo(() =>
+    facilityFilter ? activeBookings.filter(b => b.facility_id === facilityFilter) : activeBookings,
+    [activeBookings, facilityFilter]
+  )
+
   const bookingsByDate = useMemo(() => {
     const map: Record<string, Booking[]> = {}
-    for (const b of activeBookings) {
+    for (const b of filteredBookings) {
       if (!map[b.date]) map[b.date] = []
       map[b.date].push(b)
     }
@@ -82,7 +106,7 @@ export default function Calendar() {
       map[key].sort((a, b) => a.start_time.localeCompare(b.start_time))
     }
     return map
-  }, [activeBookings])
+  }, [filteredBookings])
 
   const todayMidnight = useMemo(() => { const d = new Date(); d.setHours(0, 0, 0, 0); return d }, [])
 
@@ -109,8 +133,44 @@ export default function Calendar() {
   const onNewBooking = (date?: string) =>
     navigate(date ? `/bookings/new?date=${date}` : '/bookings/new')
 
+  const canDrag = (b: Booking) => {
+    if (b.status !== 'pending') return false
+    if (user?.role === 'booker') return b.booker_id === user.id
+    return true
+  }
+
+  const handleReschedule = async (bookingId: number, newDate: string, newTime: string) => {
+    try {
+      await client.patch(`/bookings/${bookingId}`, { date: newDate, start_time: newTime })
+      await loadBookings()
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error
+      alert(msg || 'Failed to reschedule booking')
+    }
+  }
+
+  const handleTouchStart = (e: React.TouchEvent) => {
+    touchStartX.current = e.touches[0].clientX
+    touchStartY.current = e.touches[0].clientY
+  }
+
+  const handleTouchEnd = (e: React.TouchEvent) => {
+    if (touchStartX.current === null || touchStartY.current === null || view === 'list') return
+    const dx = e.changedTouches[0].clientX - touchStartX.current
+    const dy = e.changedTouches[0].clientY - touchStartY.current
+    if (Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy)) {
+      goTo(dx < 0 ? 1 : -1)
+    }
+    touchStartX.current = null
+    touchStartY.current = null
+  }
+
   return (
-    <div className="space-y-4">
+    <div
+      className="space-y-4"
+      onTouchStart={handleTouchStart}
+      onTouchEnd={handleTouchEnd}
+    >
       {/* Header */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-2">
@@ -135,7 +195,17 @@ export default function Calendar() {
             </>
           )}
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
+          <select
+            value={facilityFilter ?? ''}
+            onChange={e => setFacilityFilter(e.target.value ? Number(e.target.value) : null)}
+            className="input py-1.5 text-sm w-36"
+          >
+            <option value="">All rooms</option>
+            {facilities.map(f => (
+              <option key={f.id} value={f.id}>{f.name}</option>
+            ))}
+          </select>
           <div className="flex rounded-md border border-gray-300 overflow-hidden text-sm">
             {(['month', 'week', 'day', 'list'] as View[]).map(v => (
               <button
@@ -147,9 +217,7 @@ export default function Calendar() {
               </button>
             ))}
           </div>
-          {user?.role !== 'admin' && (
-            <button onClick={() => onNewBooking()} className="btn-primary">+ New</button>
-          )}
+          <button onClick={() => onNewBooking()} className="btn-primary">+ New</button>
         </div>
       </div>
 
@@ -164,7 +232,6 @@ export default function Calendar() {
               currentDate={currentDate}
               bookingsByDate={bookingsByDate}
               facilities={facilities}
-              user={user}
               todayMidnight={todayMidnight}
               onBookingClick={onBookingClick}
               onNewBooking={onNewBooking}
@@ -175,10 +242,11 @@ export default function Calendar() {
               currentDate={currentDate}
               bookingsByDate={bookingsByDate}
               facilities={facilities}
-              user={user}
               todayMidnight={todayMidnight}
               onBookingClick={onBookingClick}
               onNewBooking={onNewBooking}
+              canDrag={canDrag}
+              onReschedule={handleReschedule}
             />
           )}
           {view === 'day' && (
@@ -187,11 +255,13 @@ export default function Calendar() {
               bookingsByDate={bookingsByDate}
               facilities={facilities}
               onBookingClick={onBookingClick}
+              canDrag={canDrag}
+              onReschedule={handleReschedule}
             />
           )}
           {view === 'list' && (
             <ListView
-              bookings={activeBookings}
+              bookings={filteredBookings}
               facilities={facilities}
               onBookingClick={onBookingClick}
             />
@@ -233,11 +303,13 @@ function GridLines() {
   )
 }
 
-function BookingBlock({ b, facilities, onClick, compact = false }: {
+function BookingBlock({ b, facilities, onClick, isDraggable, onDragStart, onDragEnd }: {
   b: Booking
   facilities: Facility[]
   onClick: () => void
-  compact?: boolean
+  isDraggable?: boolean
+  onDragStart?: (e: React.DragEvent) => void
+  onDragEnd?: () => void
 }) {
   const { top, height } = bookingPos(b)
   if (top >= TOTAL_HEIGHT) return null
@@ -245,28 +317,23 @@ function BookingBlock({ b, facilities, onClick, compact = false }: {
 
   return (
     <div
+      draggable={isDraggable}
+      onDragStart={isDraggable ? onDragStart : undefined}
+      onDragEnd={isDraggable ? onDragEnd : undefined}
       onClick={onClick}
       title={`${b.facility_name} · ${b.start_time}–${b.end_time} · ${bookerLabel(b)}${b.status === 'pending' ? ' (pending)' : ''}`}
       style={{ top, height, backgroundColor: color, opacity: b.status === 'pending' ? 0.7 : 1 }}
-      className="absolute left-0.5 right-0.5 rounded text-white text-xs p-1 overflow-hidden cursor-pointer hover:opacity-90 z-10 shadow-sm"
-    >
-      <div className="font-semibold truncate">{b.start_time}</div>
-      {!compact && <div className="truncate">{b.facility_name}</div>}
-      {height >= SLOT_PX * 2 && <div className="truncate opacity-80 text-xs">{b.booker_name}</div>}
-      {height >= SLOT_PX * 3 && b.booker_organisation && (
-        <div className="truncate opacity-70 text-xs">{b.booker_organisation}</div>
-      )}
-    </div>
+      className={`absolute left-0.5 right-0.5 rounded overflow-hidden z-10 shadow-sm hover:opacity-90 ${isDraggable ? 'cursor-grab active:cursor-grabbing' : 'cursor-pointer'}`}
+    />
   )
 }
 
 // ─── Month view ───────────────────────────────────────────────────────────────
 
-function MonthView({ currentDate, bookingsByDate, facilities, user, todayMidnight, onBookingClick, onNewBooking }: {
+function MonthView({ currentDate, bookingsByDate, facilities, todayMidnight, onBookingClick, onNewBooking }: {
   currentDate: Date
   bookingsByDate: Record<string, Booking[]>
   facilities: Facility[]
-  user: User | null
   todayMidnight: Date
   onBookingClick: (id: number) => void
   onNewBooking: (date: string) => void
@@ -305,7 +372,7 @@ function MonthView({ currentDate, bookingsByDate, facilities, user, todayMidnigh
             const inMonth = isSameMonth(day, currentDate)
             const isToday = isSameDay(day, new Date())
             const isPast = day < todayMidnight
-            const clickable = !isPast && user?.role !== 'admin'
+            const clickable = !isPast
             const isLastCol = (idx + 1) % 7 === 0
 
             return (
@@ -328,22 +395,14 @@ function MonthView({ currentDate, bookingsByDate, facilities, user, todayMidnigh
                 <div className="space-y-0.5">
                   {dayBookings.slice(0, MAX).map(b => {
                     const color = getFacilityColor(b.facility_id, facilities)
-                    const isOwn = b.booker_id === user?.id
                     return (
                       <div
                         key={b.id}
                         onClick={e => { e.stopPropagation(); onBookingClick(b.id) }}
                         title={`${b.facility_name} · ${b.start_time}–${b.end_time} · ${bookerLabel(b)}${b.status === 'pending' ? ' (pending)' : ''}`}
-                        style={{
-                          backgroundColor: color,
-                          opacity: b.status === 'pending' ? 0.6 : 1,
-                          ...(isOwn ? { outline: '2px solid white', outlineOffset: '-2px', boxShadow: `0 0 0 2px ${color}` } : {}),
-                        }}
-                        className="text-white text-xs px-1 sm:px-1.5 py-0.5 rounded truncate cursor-pointer hover:opacity-90 transition-opacity leading-tight"
-                      >
-                        <span className="font-semibold hidden sm:inline">{b.start_time} </span>
-                        <span className="font-medium">{b.facility_name.split(' ')[0]}</span>
-                      </div>
+                        style={{ backgroundColor: color, opacity: b.status === 'pending' ? 0.5 : 1 }}
+                        className="h-2 rounded cursor-pointer hover:opacity-80 transition-opacity"
+                      />
                     )
                   })}
                   {dayBookings.length > MAX && (
@@ -368,7 +427,7 @@ function MonthView({ currentDate, bookingsByDate, facilities, user, todayMidnigh
           </div>
         ))}
         {facilitiesInView.length > 0 && (
-          <span className="text-xs text-gray-400">· Faded = pending · Ringed = your booking</span>
+          <span className="text-xs text-gray-400">· Faded = pending</span>
         )}
       </div>
     </>
@@ -377,19 +436,31 @@ function MonthView({ currentDate, bookingsByDate, facilities, user, todayMidnigh
 
 // ─── Week view ────────────────────────────────────────────────────────────────
 
-function WeekView({ currentDate, bookingsByDate, facilities, user, todayMidnight, onBookingClick, onNewBooking }: {
+function WeekView({ currentDate, bookingsByDate, facilities, todayMidnight, onBookingClick, onNewBooking, canDrag, onReschedule }: {
   currentDate: Date
   bookingsByDate: Record<string, Booking[]>
   facilities: Facility[]
-  user: User | null
   todayMidnight: Date
   onBookingClick: (id: number) => void
   onNewBooking: (date: string) => void
+  canDrag: (b: Booking) => boolean
+  onReschedule: (bookingId: number, newDate: string, newTime: string) => void
 }) {
+  const [dropTarget, setDropTarget] = useState<string | null>(null)
+
   const weekDays = useMemo(() => {
     const start = startOfWeek(currentDate, { weekStartsOn: 1 })
     return Array.from({ length: 7 }, (_, i) => addDays(start, i))
   }, [currentDate])
+
+  const handleDrop = (e: React.DragEvent, dayKey: string) => {
+    e.preventDefault()
+    setDropTarget(null)
+    const bookingId = parseInt(e.dataTransfer.getData('bookingId'))
+    if (!bookingId) return
+    const rect = e.currentTarget.getBoundingClientRect()
+    onReschedule(bookingId, dayKey, yToTime(e.clientY - rect.top))
+  }
 
   return (
     <div className="card p-0 overflow-hidden">
@@ -399,7 +470,7 @@ function WeekView({ currentDate, bookingsByDate, facilities, user, todayMidnight
         {weekDays.map(day => {
           const isToday = isSameDay(day, new Date())
           const isPast = day < todayMidnight
-          const clickable = !isPast && user?.role !== 'admin'
+          const clickable = !isPast
           const key = format(day, 'yyyy-MM-dd')
           return (
             <div
@@ -424,11 +495,26 @@ function WeekView({ currentDate, bookingsByDate, facilities, user, todayMidnight
             const key = format(day, 'yyyy-MM-dd')
             const dayBookings = bookingsByDate[key] || []
             const isToday = isSameDay(day, new Date())
+            const isDropTarget = dropTarget === key
             return (
-              <div key={key} className={`relative border-l border-gray-200 ${isToday ? 'bg-primary-50/20' : ''}`}>
+              <div
+                key={key}
+                className={`relative border-l border-gray-200 transition-colors ${isToday ? 'bg-primary-50/20' : ''} ${isDropTarget ? 'bg-primary-100/50' : ''}`}
+                onDragOver={e => { e.preventDefault(); setDropTarget(key) }}
+                onDragLeave={() => setDropTarget(null)}
+                onDrop={e => handleDrop(e, key)}
+              >
                 <GridLines />
                 {dayBookings.map(b => (
-                  <BookingBlock key={b.id} b={b} facilities={facilities} onClick={() => onBookingClick(b.id)} compact />
+                  <BookingBlock
+                    key={b.id}
+                    b={b}
+                    facilities={facilities}
+                    onClick={() => onBookingClick(b.id)}
+                    isDraggable={canDrag(b)}
+                    onDragStart={e => e.dataTransfer.setData('bookingId', String(b.id))}
+                    onDragEnd={() => setDropTarget(null)}
+                  />
                 ))}
               </div>
             )
@@ -441,24 +527,41 @@ function WeekView({ currentDate, bookingsByDate, facilities, user, todayMidnight
 
 // ─── Day view ─────────────────────────────────────────────────────────────────
 
-function DayView({ currentDate, bookingsByDate, facilities, onBookingClick }: {
+function DayView({ currentDate, bookingsByDate, facilities, onBookingClick, canDrag, onReschedule }: {
   currentDate: Date
   bookingsByDate: Record<string, Booking[]>
   facilities: Facility[]
   onBookingClick: (id: number) => void
+  canDrag: (b: Booking) => boolean
+  onReschedule: (bookingId: number, newDate: string, newTime: string) => void
 }) {
+  const [isDragOver, setIsDragOver] = useState(false)
   const key = format(currentDate, 'yyyy-MM-dd')
   const dayBookings = bookingsByDate[key] || []
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault()
+    setIsDragOver(false)
+    const bookingId = parseInt(e.dataTransfer.getData('bookingId'))
+    if (!bookingId) return
+    const rect = e.currentTarget.getBoundingClientRect()
+    onReschedule(bookingId, key, yToTime(e.clientY - rect.top))
+  }
 
   return (
     <div className="card p-0 overflow-hidden">
       <div className="overflow-y-auto" style={{ maxHeight: '70vh' }}>
         <div style={{ display: 'grid', gridTemplateColumns: '64px 1fr', height: TOTAL_HEIGHT }}>
           <TimeLabels />
-          <div className="relative">
+          <div
+            className={`relative transition-colors ${isDragOver ? 'bg-primary-100/50' : ''}`}
+            onDragOver={e => { e.preventDefault(); setIsDragOver(true) }}
+            onDragLeave={() => setIsDragOver(false)}
+            onDrop={handleDrop}
+          >
             <GridLines />
             {dayBookings.length === 0 && (
-              <div className="absolute inset-0 flex items-center justify-center text-gray-400 text-sm">
+              <div className="absolute inset-0 flex items-center justify-center text-gray-400 text-sm pointer-events-none">
                 No bookings this day
               </div>
             )}
@@ -466,12 +569,18 @@ function DayView({ currentDate, bookingsByDate, facilities, onBookingClick }: {
               const { top, height } = bookingPos(b)
               if (top >= TOTAL_HEIGHT) return null
               const color = getFacilityColor(b.facility_id, facilities)
+              const draggable = canDrag(b)
               return (
                 <div
                   key={b.id}
+                  draggable={draggable}
+                  onDragStart={draggable ? e => {
+                    e.dataTransfer.setData('bookingId', String(b.id))
+                  } : undefined}
+                  onDragEnd={draggable ? () => setIsDragOver(false) : undefined}
                   onClick={() => onBookingClick(b.id)}
                   style={{ top, height, backgroundColor: color, opacity: b.status === 'pending' ? 0.7 : 1 }}
-                  className="absolute left-2 right-2 rounded-lg text-white p-2 overflow-hidden cursor-pointer hover:opacity-90 shadow-md z-10"
+                  className={`absolute left-2 right-2 rounded-lg text-white p-2 overflow-hidden hover:opacity-90 shadow-md z-10 ${draggable ? 'cursor-grab active:cursor-grabbing' : 'cursor-pointer'}`}
                 >
                   <div className="font-bold text-sm truncate">{b.facility_name}</div>
                   <div className="text-xs opacity-90">{b.start_time} – {b.end_time} · {slotsToLabel(b.duration_slots)}</div>

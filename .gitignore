@@ -8,3 +8,4 @@ backend/data/
 .env.local
 .env.production
 .env.*.local
+.claude/settings.local.json

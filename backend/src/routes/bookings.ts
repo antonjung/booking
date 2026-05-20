@@ -262,6 +262,60 @@ router.put('/:id/deny', authenticateToken, requireRole('controller', 'admin'), a
   res.json(fullBooking);
 });
 
+// PATCH /api/bookings/:id — reschedule pending booking
+router.patch('/:id', authenticateToken, async (req: Request, res: Response): Promise<void> => {
+  const { id } = req.params;
+  const { date, start_time } = req.body;
+  const user = req.user!;
+
+  if (!date || !start_time) {
+    res.status(400).json({ error: 'date and start_time are required' });
+    return;
+  }
+
+  if (!/^\d{2}:\d{2}$/.test(start_time)) {
+    res.status(400).json({ error: 'start_time must be in HH:MM format' });
+    return;
+  }
+
+  const booking = db.prepare('SELECT * FROM bookings WHERE id = ?').get(id) as Booking | undefined;
+  if (!booking) {
+    res.status(404).json({ error: 'Booking not found' });
+    return;
+  }
+
+  if (booking.status !== 'pending') {
+    res.status(400).json({ error: 'Only pending bookings can be rescheduled' });
+    return;
+  }
+
+  if (user.role === 'booker' && booking.booker_id !== user.userId) {
+    res.status(403).json({ error: 'Not authorised to reschedule this booking' });
+    return;
+  }
+
+  if (checkConflict(booking.facility_id, date, start_time, booking.duration_slots, booking.id)) {
+    res.status(409).json({ error: 'This time slot conflicts with an existing approved booking' });
+    return;
+  }
+
+  db.prepare(`
+    UPDATE bookings SET date = ?, start_time = ?, updated_at = datetime('now') WHERE id = ?
+  `).run(date, start_time, id);
+
+  const updated = db.prepare(`
+    SELECT b.*, f.name as facility_name, booker.name as booker_name, booker.email as booker_email,
+    ctrl.name as controller_name
+    FROM bookings b
+    JOIN facilities f ON b.facility_id = f.id
+    JOIN users booker ON b.booker_id = booker.id
+    LEFT JOIN users ctrl ON b.controller_id = ctrl.id
+    WHERE b.id = ?
+  `).get(id);
+
+  res.json(updated);
+});
+
 // DELETE /api/bookings/:id — cancel booking
 router.delete('/:id', authenticateToken, (req: Request, res: Response): void => {
   const { id } = req.params;

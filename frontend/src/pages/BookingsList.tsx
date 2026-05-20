@@ -2,7 +2,6 @@ import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import client from '../api/client'
 import { Booking, Facility } from '../types'
-import { useAuth } from '../contexts/AuthContext'
 import { format } from 'date-fns'
 
 function slotsToLabel(slots: number): string {
@@ -19,7 +18,6 @@ function StatusBadge({ status }: { status: string }) {
 }
 
 export default function BookingsList() {
-  const { user } = useAuth()
   const [bookings, setBookings] = useState<Booking[]>([])
   const [facilities, setFacilities] = useState<Facility[]>([])
   const [loading, setLoading] = useState(true)
@@ -65,11 +63,9 @@ export default function BookingsList() {
         <h1>
           All Bookings
         </h1>
-        {user?.role !== 'admin' && (
-          <Link to="/bookings/new" className="btn-primary">
-            + New Booking
-          </Link>
-        )}
+        <Link to="/bookings/new" className="btn-primary">
+          + New Booking
+        </Link>
       </div>
 
       {/* Filters */}
@@ -118,11 +114,9 @@ export default function BookingsList() {
       ) : bookings.length === 0 ? (
         <div className="card text-center py-12">
           <p className="text-gray-500">No bookings found.</p>
-          {user?.role !== 'admin' && (
-            <Link to="/bookings/new" className="btn-primary mt-4 inline-block">
-              Make a Booking
-            </Link>
-          )}
+          <Link to="/bookings/new" className="btn-primary mt-4 inline-block">
+            Make a Booking
+          </Link>
         </div>
       ) : (
         <div className="card p-0 overflow-hidden">

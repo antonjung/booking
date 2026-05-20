@@ -81,11 +81,9 @@ export default function Dashboard() {
           <h1 className="text-white text-2xl font-bold">Welcome, {user?.name}</h1>
           <p className="text-primary-200 text-sm mt-0.5">{format(new Date(), 'EEEE, d MMMM yyyy')}</p>
         </div>
-        {user?.role !== 'admin' && (
-          <Link to="/bookings/new" className="flex-shrink-0 bg-white text-primary-800 font-semibold text-sm px-4 py-2 rounded-lg hover:bg-primary-50 transition-colors">
-            + New Booking
-          </Link>
-        )}
+        <Link to="/bookings/new" className="flex-shrink-0 bg-white text-primary-800 font-semibold text-sm px-4 py-2 rounded-lg hover:bg-primary-50 transition-colors">
+          + New Booking
+        </Link>
       </div>
 
       {/* Admin stats */}
