@@ -16,12 +16,14 @@ const PALETTE = [
   '#0891b2', '#65a30d', '#ea580c', '#db2777', '#4f46e5',
 ]
 
-const SLOT_PX = 48
+const SLOT_PX = 48        // day view: 30-min slot height
+const WEEK_SLOT_PX = 20   // week view: 30-min slot height (1 hour = 40px)
 const HOUR_START = 7
 const HOUR_END = 22
 const HOURS = Array.from({ length: HOUR_END - HOUR_START }, (_, i) => HOUR_START + i)
 const WEEK_DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
 const TOTAL_HEIGHT = (HOUR_END - HOUR_START) * 2 * SLOT_PX
+const WEEK_TOTAL_HEIGHT = (HOUR_END - HOUR_START) * 2 * WEEK_SLOT_PX
 
 function getFacilityColor(facilityId: number, facilities: Facility[]) {
   const f = facilities.find(f => f.id === facilityId)
@@ -42,9 +44,9 @@ function slotsToLabel(slots: number) {
   return `${m}m`
 }
 
-function bookingPos(b: Booking) {
-  const top = Math.max(0, (timeToMinutes(b.start_time) - HOUR_START * 60) / 30 * SLOT_PX)
-  const height = b.duration_slots * SLOT_PX
+function bookingPos(b: Booking, slotPx = SLOT_PX) {
+  const top = Math.max(0, (timeToMinutes(b.start_time) - HOUR_START * 60) / 30 * slotPx)
+  const height = b.duration_slots * slotPx
   return { top, height }
 }
 
@@ -52,8 +54,8 @@ function bookerLabel(b: Booking) {
   return b.booker_organisation ? `${b.booker_name} · ${b.booker_organisation}` : b.booker_name
 }
 
-function yToTime(offsetY: number): string {
-  const slotIndex = Math.round(offsetY / SLOT_PX)
+function yToTime(offsetY: number, slotPx = SLOT_PX): string {
+  const slotIndex = Math.round(offsetY / slotPx)
   const clamped = Math.max(0, Math.min((HOUR_END - HOUR_START) * 2 - 1, slotIndex))
   const totalMinutes = HOUR_START * 60 + clamped * 30
   const h = Math.floor(totalMinutes / 60)
@@ -72,6 +74,7 @@ export default function Calendar() {
   const [facilities, setFacilities] = useState<Facility[]>([])
   const [loading, setLoading] = useState(true)
   const [facilityFilter, setFacilityFilter] = useState<number | null>(null)
+  const [slide, setSlide] = useState({ x: 0, opacity: 1, anim: false })
   const touchStartX = useRef<number | null>(null)
   const touchStartY = useRef<number | null>(null)
 
@@ -91,10 +94,11 @@ export default function Calendar() {
 
   const activeBookings = useMemo(() => bookings.filter(b => b.status !== 'denied'), [bookings])
 
-  const filteredBookings = useMemo(() =>
-    facilityFilter ? activeBookings.filter(b => b.facility_id === facilityFilter) : activeBookings,
-    [activeBookings, facilityFilter]
-  )
+  const filteredBookings = useMemo(() => {
+    if (!facilityFilter) return activeBookings
+    const wholeHallIds = new Set(facilities.filter(f => f.is_whole_hall === 1).map(f => f.id))
+    return activeBookings.filter(b => b.facility_id === facilityFilter || wholeHallIds.has(b.facility_id))
+  }, [activeBookings, facilityFilter, facilities])
 
   const bookingsByDate = useMemo(() => {
     const map: Record<string, Booking[]> = {}
@@ -111,11 +115,18 @@ export default function Calendar() {
   const todayMidnight = useMemo(() => { const d = new Date(); d.setHours(0, 0, 0, 0); return d }, [])
 
   const goTo = (dir: 1 | -1) => {
-    setCurrentDate(d => {
-      if (view === 'month') return dir > 0 ? addMonths(d, 1) : subMonths(d, 1)
-      if (view === 'week') return dir > 0 ? addWeeks(d, 1) : subWeeks(d, 1)
-      return dir > 0 ? addDays(d, 1) : subDays(d, 1)
-    })
+    setSlide({ x: dir > 0 ? -40 : 40, opacity: 0, anim: true })
+    setTimeout(() => {
+      setCurrentDate(d => {
+        if (view === 'month') return dir > 0 ? addMonths(d, 1) : subMonths(d, 1)
+        if (view === 'week') return dir > 0 ? addWeeks(d, 1) : subWeeks(d, 1)
+        return dir > 0 ? addDays(d, 1) : subDays(d, 1)
+      })
+      setSlide({ x: dir > 0 ? 40 : -40, opacity: 0, anim: false })
+      requestAnimationFrame(() => requestAnimationFrame(() =>
+        setSlide({ x: 0, opacity: 1, anim: true })
+      ))
+    }, 180)
   }
 
   const title = useMemo(() => {
@@ -226,7 +237,13 @@ export default function Calendar() {
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-700" />
         </div>
       ) : (
-        <>
+        <div
+          style={{
+            transform: `translateX(${slide.x}px)`,
+            opacity: slide.opacity,
+            transition: slide.anim ? 'transform 0.18s ease, opacity 0.18s ease' : 'none',
+          }}
+        >
           {view === 'month' && (
             <MonthView
               currentDate={currentDate}
@@ -266,7 +283,7 @@ export default function Calendar() {
               onBookingClick={onBookingClick}
             />
           )}
-        </>
+        </div>
       )}
     </div>
   )
@@ -274,14 +291,14 @@ export default function Calendar() {
 
 // ─── Time grid helpers ────────────────────────────────────────────────────────
 
-function TimeLabels() {
+function TimeLabels({ slotPx = SLOT_PX }: { slotPx?: number }) {
   return (
     <div className="relative border-r border-gray-200 bg-gray-50">
       {HOURS.map(h => (
         <div
           key={h}
           className="absolute w-full text-right pr-2 text-xs text-gray-400 select-none"
-          style={{ top: (h - HOUR_START) * 2 * SLOT_PX - 7 }}
+          style={{ top: (h - HOUR_START) * 2 * slotPx - 7 }}
         >
           {String(h).padStart(2, '0')}:00
         </div>
@@ -290,29 +307,31 @@ function TimeLabels() {
   )
 }
 
-function GridLines() {
+function GridLines({ slotPx = SLOT_PX }: { slotPx?: number }) {
   return (
     <>
       {HOURS.map(h => (
-        <div key={h} className="absolute w-full border-t border-gray-100" style={{ top: (h - HOUR_START) * 2 * SLOT_PX }} />
+        <div key={h} className="absolute w-full border-t border-gray-100" style={{ top: (h - HOUR_START) * 2 * slotPx }} />
       ))}
       {HOURS.map(h => (
-        <div key={`${h}h`} className="absolute w-full border-t border-gray-50" style={{ top: (h - HOUR_START) * 2 * SLOT_PX + SLOT_PX }} />
+        <div key={`${h}h`} className="absolute w-full border-t border-gray-50" style={{ top: (h - HOUR_START) * 2 * slotPx + slotPx }} />
       ))}
     </>
   )
 }
 
-function BookingBlock({ b, facilities, onClick, isDraggable, onDragStart, onDragEnd }: {
+function BookingBlock({ b, facilities, onClick, isDraggable, onDragStart, onDragEnd, slotPx = SLOT_PX }: {
   b: Booking
   facilities: Facility[]
   onClick: () => void
   isDraggable?: boolean
   onDragStart?: (e: React.DragEvent) => void
   onDragEnd?: () => void
+  slotPx?: number
 }) {
-  const { top, height } = bookingPos(b)
-  if (top >= TOTAL_HEIGHT) return null
+  const totalHeight = (HOUR_END - HOUR_START) * 2 * slotPx
+  const { top, height } = bookingPos(b, slotPx)
+  if (top >= totalHeight) return null
   const color = getFacilityColor(b.facility_id, facilities)
 
   return (
@@ -353,6 +372,7 @@ function MonthView({ currentDate, bookingsByDate, facilities, todayMidnight, onB
   }, [days, bookingsByDate, facilities])
 
   const MAX = 3
+  const lpTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   return (
     <>
@@ -372,18 +392,21 @@ function MonthView({ currentDate, bookingsByDate, facilities, todayMidnight, onB
             const inMonth = isSameMonth(day, currentDate)
             const isToday = isSameDay(day, new Date())
             const isPast = day < todayMidnight
-            const clickable = !isPast
+            const bookable = !isPast
             const isLastCol = (idx + 1) % 7 === 0
 
             return (
               <div
                 key={key}
-                onClick={clickable ? () => onNewBooking(key) : undefined}
+                onTouchStart={bookable ? () => { lpTimer.current = setTimeout(() => onNewBooking(key), 500) } : undefined}
+                onTouchMove={() => { if (lpTimer.current) { clearTimeout(lpTimer.current); lpTimer.current = null } }}
+                onTouchEnd={() => { if (lpTimer.current) { clearTimeout(lpTimer.current); lpTimer.current = null } }}
+                onClick={bookable ? () => onNewBooking(key) : undefined}
                 className={[
                   'min-h-[90px] sm:min-h-[110px] border-b border-r border-gray-100 p-1 sm:p-1.5',
                   isLastCol ? 'border-r-0' : '',
                   !inMonth ? 'bg-gray-50/70' : isPast ? 'bg-gray-50/40' : 'bg-white',
-                  clickable ? 'cursor-pointer hover:bg-primary-50/60 transition-colors' : '',
+                  bookable ? 'cursor-pointer hover:bg-primary-50/60 transition-colors' : '',
                 ].filter(Boolean).join(' ')}
               >
                 <div className={[
@@ -447,6 +470,7 @@ function WeekView({ currentDate, bookingsByDate, facilities, todayMidnight, onBo
   onReschedule: (bookingId: number, newDate: string, newTime: string) => void
 }) {
   const [dropTarget, setDropTarget] = useState<string | null>(null)
+  const lpTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const weekDays = useMemo(() => {
     const start = startOfWeek(currentDate, { weekStartsOn: 1 })
@@ -459,7 +483,7 @@ function WeekView({ currentDate, bookingsByDate, facilities, todayMidnight, onBo
     const bookingId = parseInt(e.dataTransfer.getData('bookingId'))
     if (!bookingId) return
     const rect = e.currentTarget.getBoundingClientRect()
-    onReschedule(bookingId, dayKey, yToTime(e.clientY - rect.top))
+    onReschedule(bookingId, dayKey, yToTime(e.clientY - rect.top, WEEK_SLOT_PX))
   }
 
   return (
@@ -470,13 +494,16 @@ function WeekView({ currentDate, bookingsByDate, facilities, todayMidnight, onBo
         {weekDays.map(day => {
           const isToday = isSameDay(day, new Date())
           const isPast = day < todayMidnight
-          const clickable = !isPast
+          const bookable = !isPast
           const key = format(day, 'yyyy-MM-dd')
           return (
             <div
               key={key}
-              onClick={clickable ? () => onNewBooking(key) : undefined}
-              className={`py-2 text-center border-l border-gray-200 ${clickable ? 'cursor-pointer hover:bg-primary-50' : ''}`}
+              onTouchStart={bookable ? () => { lpTimer.current = setTimeout(() => onNewBooking(key), 500) } : undefined}
+              onTouchMove={() => { if (lpTimer.current) { clearTimeout(lpTimer.current); lpTimer.current = null } }}
+              onTouchEnd={() => { if (lpTimer.current) { clearTimeout(lpTimer.current); lpTimer.current = null } }}
+              onClick={bookable ? () => onNewBooking(key) : undefined}
+              className={`py-2 text-center border-l border-gray-200 ${bookable ? 'cursor-pointer hover:bg-primary-50' : ''}`}
             >
               <div className="text-xs text-gray-500 uppercase">{format(day, 'EEE')}</div>
               <div className={`text-sm font-semibold w-7 h-7 flex items-center justify-center rounded-full mx-auto ${isToday ? 'bg-primary-700 text-white' : isPast ? 'text-gray-400' : 'text-gray-900'}`}>
@@ -488,38 +515,37 @@ function WeekView({ currentDate, bookingsByDate, facilities, todayMidnight, onBo
       </div>
 
       {/* Time grid */}
-      <div className="overflow-y-auto" style={{ maxHeight: '600px' }}>
-        <div style={{ display: 'grid', gridTemplateColumns: '56px repeat(7, 1fr)', height: TOTAL_HEIGHT }}>
-          <TimeLabels />
-          {weekDays.map(day => {
-            const key = format(day, 'yyyy-MM-dd')
-            const dayBookings = bookingsByDate[key] || []
-            const isToday = isSameDay(day, new Date())
-            const isDropTarget = dropTarget === key
-            return (
-              <div
-                key={key}
-                className={`relative border-l border-gray-200 transition-colors ${isToday ? 'bg-primary-50/20' : ''} ${isDropTarget ? 'bg-primary-100/50' : ''}`}
-                onDragOver={e => { e.preventDefault(); setDropTarget(key) }}
-                onDragLeave={() => setDropTarget(null)}
-                onDrop={e => handleDrop(e, key)}
-              >
-                <GridLines />
-                {dayBookings.map(b => (
-                  <BookingBlock
-                    key={b.id}
-                    b={b}
-                    facilities={facilities}
-                    onClick={() => onBookingClick(b.id)}
-                    isDraggable={canDrag(b)}
-                    onDragStart={e => e.dataTransfer.setData('bookingId', String(b.id))}
-                    onDragEnd={() => setDropTarget(null)}
-                  />
-                ))}
-              </div>
-            )
-          })}
-        </div>
+      <div style={{ display: 'grid', gridTemplateColumns: '56px repeat(7, 1fr)', height: WEEK_TOTAL_HEIGHT }}>
+        <TimeLabels slotPx={WEEK_SLOT_PX} />
+        {weekDays.map(day => {
+          const key = format(day, 'yyyy-MM-dd')
+          const dayBookings = bookingsByDate[key] || []
+          const isToday = isSameDay(day, new Date())
+          const isDropTarget = dropTarget === key
+          return (
+            <div
+              key={key}
+              className={`relative border-l border-gray-200 transition-colors ${isToday ? 'bg-primary-50/20' : ''} ${isDropTarget ? 'bg-primary-100/50' : ''}`}
+              onDragOver={e => { e.preventDefault(); setDropTarget(key) }}
+              onDragLeave={() => setDropTarget(null)}
+              onDrop={e => handleDrop(e, key)}
+            >
+              <GridLines slotPx={WEEK_SLOT_PX} />
+              {dayBookings.map(b => (
+                <BookingBlock
+                  key={b.id}
+                  b={b}
+                  facilities={facilities}
+                  onClick={() => onBookingClick(b.id)}
+                  slotPx={WEEK_SLOT_PX}
+                  isDraggable={canDrag(b)}
+                  onDragStart={e => e.dataTransfer.setData('bookingId', String(b.id))}
+                  onDragEnd={() => setDropTarget(null)}
+                />
+              ))}
+            </div>
+          )
+        })}
       </div>
     </div>
   )

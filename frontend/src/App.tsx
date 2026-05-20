@@ -63,8 +63,8 @@ export default function App() {
           </RequireAuth>
         }
       >
-        <Route index element={<Dashboard />} />
-        <Route path="calendar" element={<Calendar />} />
+        <Route index element={<Calendar />} />
+        <Route path="dashboard" element={<Dashboard />} />
         <Route path="bookings" element={<BookingsList />} />
         <Route path="bookings/new" element={<NewBooking />} />
         <Route path="bookings/:id" element={<BookingDetail />} />
