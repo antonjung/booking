@@ -17,7 +17,7 @@ const PALETTE = [
 ]
 
 const SLOT_PX = 48        // day view: 30-min slot height
-const WEEK_SLOT_PX = 20   // week view: 30-min slot height (1 hour = 40px)
+const WEEK_SLOT_PX = 12   // week view: 30-min slot height (1 hour = 24px)
 const HOUR_START = 7
 const HOUR_END = 22
 const HOURS = Array.from({ length: HOUR_END - HOUR_START }, (_, i) => HOUR_START + i)
@@ -114,6 +114,11 @@ export default function Calendar() {
 
   const todayMidnight = useMemo(() => { const d = new Date(); d.setHours(0, 0, 0, 0); return d }, [])
 
+  const facilitiesForKey = useMemo(() => {
+    const ids = new Set(filteredBookings.map(b => b.facility_id))
+    return facilities.filter(f => ids.has(f.id))
+  }, [filteredBookings, facilities])
+
   const goTo = (dir: 1 | -1) => {
     setSlide({ x: dir > 0 ? -40 : 40, opacity: 0, anim: true })
     setTimeout(() => {
@@ -136,7 +141,7 @@ export default function Calendar() {
       const e = endOfWeek(currentDate, { weekStartsOn: 1 })
       return `${format(s, 'd MMM')} – ${format(e, 'd MMM yyyy')}`
     }
-    if (view === 'day') return format(currentDate, 'EEEE, d MMMM yyyy')
+    if (view === 'day') return format(currentDate, 'EEE d MMM yyyy')
     return 'All Bookings'
   }, [view, currentDate])
 
@@ -192,7 +197,7 @@ export default function Calendar() {
               </svg>
             </button>
           )}
-          <h1 className="text-xl font-bold min-w-[200px] text-center">{title}</h1>
+          <h1 className="text-xl font-bold w-64 text-center shrink-0">{title}</h1>
           {view !== 'list' && (
             <>
               <button onClick={() => goTo(1)} className="p-2 rounded-md hover:bg-gray-100 text-gray-600">
@@ -283,6 +288,17 @@ export default function Calendar() {
               onBookingClick={onBookingClick}
             />
           )}
+          {facilitiesForKey.length > 0 && (
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 pt-1">
+              {facilitiesForKey.map(f => (
+                <div key={f.id} className="flex items-center gap-1.5">
+                  <div className="w-3 h-3 rounded-sm flex-shrink-0" style={{ backgroundColor: getFacilityColor(f.id, facilities) }} />
+                  <span className="text-sm text-gray-700">{f.name}</span>
+                </div>
+              ))}
+              <span className="text-xs text-gray-400">· Faded = pending</span>
+            </div>
+          )}
         </div>
       )}
     </div>
@@ -363,14 +379,6 @@ function MonthView({ currentDate, bookingsByDate, facilities, todayMidnight, onB
     return eachDayOfInterval({ start, end })
   }, [currentDate])
 
-  const facilitiesInView = useMemo(() => {
-    const ids = new Set<number>()
-    for (const day of days) {
-      for (const b of bookingsByDate[format(day, 'yyyy-MM-dd')] || []) ids.add(b.facility_id)
-    }
-    return facilities.filter(f => ids.has(f.id))
-  }, [days, bookingsByDate, facilities])
-
   const MAX = 3
   const lpTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -398,7 +406,7 @@ function MonthView({ currentDate, bookingsByDate, facilities, todayMidnight, onB
             return (
               <div
                 key={key}
-                onTouchStart={bookable ? () => { lpTimer.current = setTimeout(() => onNewBooking(key), 500) } : undefined}
+                onTouchStart={bookable ? () => { lpTimer.current = setTimeout(() => onNewBooking(key), 1000) } : undefined}
                 onTouchMove={() => { if (lpTimer.current) { clearTimeout(lpTimer.current); lpTimer.current = null } }}
                 onTouchEnd={() => { if (lpTimer.current) { clearTimeout(lpTimer.current); lpTimer.current = null } }}
                 onClick={bookable ? () => onNewBooking(key) : undefined}
@@ -441,17 +449,6 @@ function MonthView({ currentDate, bookingsByDate, facilities, todayMidnight, onB
             )
           })}
         </div>
-      </div>
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-        {facilitiesInView.map(f => (
-          <div key={f.id} className="flex items-center gap-1.5">
-            <div className="w-3 h-3 rounded-sm" style={{ backgroundColor: getFacilityColor(f.id, facilities) }} />
-            <span className="text-sm text-gray-700">{f.name}</span>
-          </div>
-        ))}
-        {facilitiesInView.length > 0 && (
-          <span className="text-xs text-gray-400">· Faded = pending</span>
-        )}
       </div>
     </>
   )
@@ -499,7 +496,7 @@ function WeekView({ currentDate, bookingsByDate, facilities, todayMidnight, onBo
           return (
             <div
               key={key}
-              onTouchStart={bookable ? () => { lpTimer.current = setTimeout(() => onNewBooking(key), 500) } : undefined}
+              onTouchStart={bookable ? () => { lpTimer.current = setTimeout(() => onNewBooking(key), 1000) } : undefined}
               onTouchMove={() => { if (lpTimer.current) { clearTimeout(lpTimer.current); lpTimer.current = null } }}
               onTouchEnd={() => { if (lpTimer.current) { clearTimeout(lpTimer.current); lpTimer.current = null } }}
               onClick={bookable ? () => onNewBooking(key) : undefined}
