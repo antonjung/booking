@@ -363,7 +363,13 @@ function BookingBlock({ b, facilities, onClick, isDraggable, onDragStart, onDrag
       title={`${b.facility_name} · ${b.start_time}–${b.end_time} · ${bookerLabel(b)}${b.status === 'pending' ? ' (pending)' : ''}`}
       style={{ top, height, backgroundColor: color, opacity: b.status === 'pending' ? 0.7 : 1 }}
       className={`absolute left-0.5 right-0.5 rounded overflow-hidden z-10 shadow-sm hover:opacity-90 ${isDraggable ? 'cursor-grab active:cursor-grabbing' : 'cursor-pointer'}`}
-    />
+    >
+      {height >= slotPx * 2 && (
+        <span className="text-white text-[9px] leading-none px-0.5 pt-0.5 block truncate">
+          {b.booker_organisation || b.booker_name}
+        </span>
+      )}
+    </div>
   )
 }
 
@@ -436,8 +442,12 @@ function MonthView({ currentDate, bookingsByDate, facilities, todayMidnight, onB
                         onClick={e => { e.stopPropagation(); onBookingClick(b.id) }}
                         title={`${b.facility_name} · ${b.start_time}–${b.end_time} · ${bookerLabel(b)}${b.status === 'pending' ? ' (pending)' : ''}`}
                         style={{ backgroundColor: color, opacity: b.status === 'pending' ? 0.5 : 1 }}
-                        className="h-6 rounded cursor-pointer hover:opacity-80 transition-opacity"
-                      />
+                        className="h-6 rounded cursor-pointer hover:opacity-80 transition-opacity flex items-center px-1.5 overflow-hidden"
+                      >
+                        <span className="text-white text-xs truncate leading-none">
+                          {b.booker_organisation || b.booker_name}
+                        </span>
+                      </div>
                     )
                   })}
                   {dayBookings.length > MAX && (
