@@ -108,7 +108,7 @@ export default function Layout() {
                   d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
               </svg>
               <span className="text-white font-bold text-lg">Village Hall</span>
-              <span className="text-primary-300 text-xs hidden sm:block">v1.0.6</span>
+              <span className="text-primary-300 text-xs hidden sm:block">v1.1.0</span>
             </NavLink>
 
             <div className="flex items-center gap-3">

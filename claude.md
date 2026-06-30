@@ -50,7 +50,7 @@ Profile: name, email, phone, organisation, contact preference (email / notificat
 - Routes: `/` (Calendar), `/dashboard`, `/bookings`, `/bookings/new`, `/bookings/:id`, `/controller`, `/admin/users`, `/admin/facilities`, `/profile`
 
 # version
-Current: `v1.0.6` (shown in top navbar and login screen)
+Current: `v1.1.0` (shown in top navbar and login screen)
 
 # key files
 - `frontend/src/pages/Calendar.tsx` — main calendar with all views, drag-drop, swipe, long press
