@@ -176,6 +176,17 @@ export default function Calendar() {
     return true
   }
 
+  const handleCancel = async (bookingId: number) => {
+    try {
+      await client.delete(`/bookings/${bookingId}`)
+      setSelectedBooking(null)
+      await loadBookings()
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error
+      alert(msg || 'Failed to cancel booking')
+    }
+  }
+
   const handleReschedule = async (bookingId: number, newDate: string, newTime: string) => {
     try {
       await client.patch(`/bookings/${bookingId}`, { date: newDate, start_time: newTime })
@@ -262,8 +273,10 @@ export default function Calendar() {
         <BookingPopup
           booking={selectedBooking}
           facilities={facilities}
+          currentUserId={user?.id}
           onClose={() => setSelectedBooking(null)}
           onNavigate={() => navigate(`/bookings/${selectedBooking.id}`)}
+          onCancel={handleCancel}
         />
       )}
 
@@ -742,18 +755,23 @@ function ListView({ bookings, facilities, onBookingClick }: {
 
 // ─── Booking popup ────────────────────────────────────────────────────────────
 
-function BookingPopup({ booking, facilities, onClose, onNavigate }: {
+function BookingPopup({ booking, facilities, currentUserId, onClose, onNavigate, onCancel }: {
   booking: Booking
   facilities: Facility[]
+  currentUserId?: string
   onClose: () => void
   onNavigate: () => void
+  onCancel: (id: number) => void
 }) {
+  const [cancelConfirm, setCancelConfirm] = useState(false)
   const color = getFacilityColor(booking.facility_id, facilities)
   const statusCls = booking.status === 'approved'
     ? 'bg-green-100 text-green-700'
     : booking.status === 'denied'
     ? 'bg-red-100 text-red-700'
     : 'bg-amber-100 text-amber-700'
+
+  const canCancel = booking.status === 'pending' && booking.booker_id === currentUserId
 
   return (
     <div
@@ -802,10 +820,23 @@ function BookingPopup({ booking, facilities, onClose, onNavigate }: {
           )}
         </div>
 
-        <div className="px-4 pb-4">
-          <button onClick={onNavigate} className="btn-primary w-full">
-            View Details
-          </button>
+        <div className="px-4 pb-4 flex gap-2">
+          {canCancel && !cancelConfirm && (
+            <button onClick={() => setCancelConfirm(true)} className="btn-danger flex-1">
+              Cancel
+            </button>
+          )}
+          {canCancel && cancelConfirm && (
+            <>
+              <button onClick={() => onCancel(booking.id)} className="btn-danger flex-1">Confirm Cancel</button>
+              <button onClick={() => setCancelConfirm(false)} className="btn-secondary flex-1">Keep</button>
+            </>
+          )}
+          {!cancelConfirm && (
+            <button onClick={onNavigate} className="btn-primary flex-1">
+              View Details
+            </button>
+          )}
         </div>
       </div>
     </div>

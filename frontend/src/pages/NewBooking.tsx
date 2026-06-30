@@ -109,12 +109,14 @@ export default function NewBooking() {
     setLoading(true)
 
     const totalBookings = repeatEnabled ? repeatWeeks + 1 : 1
+    const batchId = repeatEnabled ? crypto.randomUUID() : undefined
     const payload = {
       facility_id: parseInt(facilityId),
       start_time: startTime,
       duration_slots: durationSlots,
       organisation: organisation.trim() || undefined,
       notes: notes.trim() || undefined,
+      batch_id: batchId,
     }
 
     try {

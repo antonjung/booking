@@ -30,6 +30,7 @@ export interface Booking {
   booker_email: string;
   booker_organisation?: string;
   organisation?: string;
+  batch_id?: string;
   date: string;
   start_time: string;
   duration_slots: number;

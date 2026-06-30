@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import client from '../api/client'
+import { useAuth } from '../contexts/AuthContext'
 import { Booking, Facility } from '../types'
 import { format } from 'date-fns'
 
@@ -18,9 +19,11 @@ function StatusBadge({ status }: { status: string }) {
 }
 
 export default function BookingsList() {
+  const { user } = useAuth()
   const [bookings, setBookings] = useState<Booking[]>([])
   const [facilities, setFacilities] = useState<Facility[]>([])
   const [loading, setLoading] = useState(true)
+  const [cancelConfirm, setCancelConfirm] = useState<number | null>(null)
 
   const [filterDate, setFilterDate] = useState('')
   const [filterStatus, setFilterStatus] = useState('')
@@ -50,6 +53,16 @@ export default function BookingsList() {
   useEffect(() => {
     loadBookings()
   }, [filterDate, filterStatus, filterFacility])
+
+  const handleCancel = async (id: number) => {
+    try {
+      await client.delete(`/bookings/${id}`)
+      setCancelConfirm(null)
+      await loadBookings()
+    } catch (err: unknown) {
+      alert((err as { response?: { data?: { error?: string } } })?.response?.data?.error || 'Failed to cancel booking')
+    }
+  }
 
   const clearFilters = () => {
     setFilterDate('')
@@ -152,9 +165,19 @@ export default function BookingsList() {
                       <StatusBadge status={b.status} />
                     </td>
                     <td className="px-4 py-3 text-right">
-                      <Link to={`/bookings/${b.id}`} className="btn-secondary btn-sm">
-                        View
-                      </Link>
+                      <div className="flex items-center justify-end gap-2">
+                        <Link to={`/bookings/${b.id}`} className="btn-secondary btn-sm">View</Link>
+                        {b.status === 'pending' && b.booker_id === user?.id && (
+                          cancelConfirm === b.id ? (
+                            <>
+                              <button onClick={() => handleCancel(b.id)} className="btn-danger btn-sm">Confirm</button>
+                              <button onClick={() => setCancelConfirm(null)} className="btn-secondary btn-sm">Keep</button>
+                            </>
+                          ) : (
+                            <button onClick={() => setCancelConfirm(b.id)} className="btn-danger btn-sm">Cancel</button>
+                          )
+                        )}
+                      </div>
                     </td>
                   </tr>
                 ))}

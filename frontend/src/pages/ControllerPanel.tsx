@@ -12,17 +12,14 @@ function slotsToLabel(slots: number): string {
   return `${mins}min`
 }
 
-interface BookingRowProps {
-  booking: Booking
-  onAction: (id: number, action: 'approve' | 'deny', notes: string) => Promise<void>
-}
+type ActionFn = (id: number, action: 'approve' | 'deny', notes: string) => Promise<void>
 
-function BookingRow({ booking, onAction }: BookingRowProps) {
+function BookingRow({ booking, onAction }: { booking: Booking; onAction: ActionFn }) {
   const [notes, setNotes] = useState('')
   const [loading, setLoading] = useState(false)
   const [expanded, setExpanded] = useState(false)
 
-  const handleAction = async (action: 'approve' | 'deny') => {
+  const act = async (action: 'approve' | 'deny') => {
     setLoading(true)
     await onAction(booking.id, action, notes)
     setLoading(false)
@@ -36,68 +33,116 @@ function BookingRow({ booking, onAction }: BookingRowProps) {
             <div className="flex items-center gap-2 flex-wrap">
               <span className="font-semibold text-gray-900">{booking.facility_name}</span>
               <span className="text-gray-400">·</span>
-              <span className="text-sm text-gray-600">
-                {format(new Date(booking.date), 'd MMM yyyy')}
-              </span>
-              <span className="text-sm font-mono text-gray-600">
-                {booking.start_time} – {booking.end_time}
-              </span>
+              <span className="text-sm text-gray-600">{format(new Date(booking.date), 'd MMM yyyy')}</span>
+              <span className="text-sm font-mono text-gray-600">{booking.start_time} – {booking.end_time}</span>
               <span className="text-sm text-gray-500">({slotsToLabel(booking.duration_slots)})</span>
             </div>
             <div className="mt-1 text-sm text-gray-600">
               <span className="font-medium">{booking.booker_name}</span>
-              {booking.booker_organisation && (
-                <span className="text-gray-400"> · {booking.booker_organisation}</span>
+              {(booking.organisation || booking.booker_organisation) && (
+                <span className="text-gray-400"> · {booking.organisation || booking.booker_organisation}</span>
               )}
             </div>
-            {booking.notes && (
-              <p className="mt-1 text-sm text-gray-500 italic">"{booking.notes}"</p>
-            )}
+            {booking.notes && <p className="mt-1 text-sm text-gray-500 italic">"{booking.notes}"</p>}
           </div>
-
           <div className="flex items-center gap-2 flex-shrink-0">
-            <Link to={`/bookings/${booking.id}`} className="btn-secondary btn-sm">
-              Details
-            </Link>
-            <button
-              onClick={() => setExpanded(!expanded)}
-              className="btn-secondary btn-sm"
-            >
+            <Link to={`/bookings/${booking.id}`} className="btn-secondary btn-sm">Details</Link>
+            <button onClick={() => setExpanded(!expanded)} className="btn-secondary btn-sm">
               {expanded ? 'Hide' : 'Review'}
             </button>
           </div>
         </div>
       </div>
-
       {expanded && (
         <div className="border-t border-gray-200 bg-amber-50 p-4">
           <div className="mb-3">
             <label className="label">Notes for booker (optional)</label>
-            <textarea
-              value={notes}
-              onChange={e => setNotes(e.target.value)}
-              className="input"
-              rows={2}
-              placeholder="Reason for approval/denial, conditions, etc."
-            />
+            <textarea value={notes} onChange={e => setNotes(e.target.value)} className="input" rows={2}
+              placeholder="Reason for approval/denial, conditions, etc." />
           </div>
           <div className="flex gap-3">
-            <button
-              onClick={() => handleAction('approve')}
-              disabled={loading}
-              className="btn-success flex-1"
-            >
+            <button onClick={() => act('approve')} disabled={loading} className="btn-success flex-1">
               {loading ? '...' : 'Approve'}
             </button>
-            <button
-              onClick={() => handleAction('deny')}
-              disabled={loading}
-              className="btn-danger flex-1"
-            >
+            <button onClick={() => act('deny')} disabled={loading} className="btn-danger flex-1">
               {loading ? '...' : 'Deny'}
             </button>
           </div>
         </div>
+      )}
+    </div>
+  )
+}
+
+function BatchGroup({ bookings, onAction, onBulkAction }: {
+  bookings: Booking[]
+  onAction: ActionFn
+  onBulkAction: (ids: number[], action: 'approve' | 'deny', notes: string) => Promise<void>
+}) {
+  const [expanded, setExpanded] = useState(true)
+  const [bulkNotes, setBulkNotes] = useState('')
+  const [bulkLoading, setBulkLoading] = useState(false)
+
+  const handleBulk = async (action: 'approve' | 'deny') => {
+    setBulkLoading(true)
+    await onBulkAction(bookings.map(b => b.id), action, bulkNotes)
+    setBulkLoading(false)
+  }
+
+  const first = bookings[0]
+  const last = bookings[bookings.length - 1]
+
+  return (
+    <div className="border-2 border-primary-200 rounded-xl overflow-hidden bg-primary-50/30">
+      <button
+        onClick={() => setExpanded(!expanded)}
+        className="w-full p-4 flex items-center justify-between text-left hover:bg-primary-50/50"
+      >
+        <div>
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="font-semibold text-gray-900">{first.facility_name}</span>
+            <span className="bg-primary-100 text-primary-700 text-xs font-medium px-2 py-0.5 rounded-full">
+              {bookings.length} weekly bookings
+            </span>
+          </div>
+          <div className="text-sm text-gray-600 mt-0.5">
+            {format(new Date(first.date), 'd MMM')} – {format(new Date(last.date), 'd MMM yyyy')}
+            {' · '}{first.start_time} – {first.end_time}
+          </div>
+          <div className="text-sm text-gray-600">
+            <span className="font-medium">{first.booker_name}</span>
+            {(first.organisation || first.booker_organisation) && (
+              <span className="text-gray-400"> · {first.organisation || first.booker_organisation}</span>
+            )}
+          </div>
+        </div>
+        <svg className={`h-5 w-5 text-gray-400 flex-shrink-0 transition-transform ${expanded ? 'rotate-180' : ''}`}
+          fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+        </svg>
+      </button>
+
+      {expanded && (
+        <>
+          <div className="border-t border-primary-200 bg-amber-50 px-4 py-3">
+            <p className="text-sm font-medium text-gray-700 mb-2">Bulk action — notes for booker (optional)</p>
+            <textarea value={bulkNotes} onChange={e => setBulkNotes(e.target.value)} className="input mb-2" rows={2}
+              placeholder="Applied to all bookings in this batch..." />
+            <div className="flex gap-3">
+              <button onClick={() => handleBulk('approve')} disabled={bulkLoading} className="btn-success flex-1">
+                {bulkLoading ? '...' : `Approve All ${bookings.length}`}
+              </button>
+              <button onClick={() => handleBulk('deny')} disabled={bulkLoading} className="btn-danger flex-1">
+                {bulkLoading ? '...' : `Deny All ${bookings.length}`}
+              </button>
+            </div>
+          </div>
+          <div className="border-t border-primary-200 divide-y divide-gray-100 bg-white">
+            {bookings.map(b => (
+              <BookingRow key={b.id} booking={b} onAction={onAction} />
+            ))}
+          </div>
+        </>
       )}
     </div>
   )
@@ -127,21 +172,44 @@ export default function ControllerPanel() {
     }
   }
 
-  useEffect(() => {
-    load()
-  }, [])
+  useEffect(() => { load() }, [])
 
   const handleAction = async (id: number, action: 'approve' | 'deny', notes: string) => {
     setActionError('')
     try {
       await client.put(`/bookings/${id}/${action}`, { controller_notes: notes || undefined })
-      // Refresh list
       await load()
     } catch (err: unknown) {
       const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error
       setActionError(msg || `Failed to ${action} booking.`)
     }
   }
+
+  const handleBulkAction = async (ids: number[], action: 'approve' | 'deny', notes: string) => {
+    setActionError('')
+    for (const id of ids) {
+      try {
+        await client.put(`/bookings/${id}/${action}`, { controller_notes: notes || undefined })
+      } catch (err: unknown) {
+        const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error
+        setActionError(prev => prev ? `${prev}; ${msg}` : (msg || `Failed to ${action} booking ${id}.`))
+      }
+    }
+    await load()
+  }
+
+  const { batches, singles } = pending.reduce<{ batches: Record<string, Booking[]>; singles: Booking[] }>(
+    (acc, b) => {
+      if (b.batch_id) {
+        if (!acc.batches[b.batch_id]) acc.batches[b.batch_id] = []
+        acc.batches[b.batch_id].push(b)
+      } else {
+        acc.singles.push(b)
+      }
+      return acc
+    },
+    { batches: {}, singles: [] }
+  )
 
   if (loading) {
     return (
@@ -155,9 +223,7 @@ export default function ControllerPanel() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h1>Controller Panel</h1>
-        <span className="badge-pending text-sm px-3 py-1">
-          {pending.length} pending
-        </span>
+        <span className="badge-pending text-sm px-3 py-1">{pending.length} pending</span>
       </div>
 
       {actionError && (
@@ -166,7 +232,6 @@ export default function ControllerPanel() {
         </div>
       )}
 
-      {/* Pending bookings */}
       <section>
         <h2 className="mb-3">Pending Review</h2>
         {pending.length === 0 ? (
@@ -175,14 +240,21 @@ export default function ControllerPanel() {
           </div>
         ) : (
           <div className="space-y-3">
-            {pending.map(b => (
+            {Object.values(batches).map(group => (
+              <BatchGroup
+                key={group[0].batch_id!}
+                bookings={group.sort((a, b) => a.date.localeCompare(b.date))}
+                onAction={handleAction}
+                onBulkAction={handleBulkAction}
+              />
+            ))}
+            {singles.map(b => (
               <BookingRow key={b.id} booking={b} onAction={handleAction} />
             ))}
           </div>
         )}
       </section>
 
-      {/* Approved today */}
       <section>
         <h2 className="mb-3">Approved Today — {format(new Date(), 'd MMM yyyy')}</h2>
         {approvedToday.length === 0 ? (
@@ -207,8 +279,8 @@ export default function ControllerPanel() {
                       <td className="px-4 py-3 font-medium">{b.facility_name}</td>
                       <td className="px-4 py-3">
                         {b.booker_name}
-                        {b.booker_organisation && (
-                          <span className="text-gray-400 text-xs block">{b.booker_organisation}</span>
+                        {(b.organisation || b.booker_organisation) && (
+                          <span className="text-gray-400 text-xs block">{b.organisation || b.booker_organisation}</span>
                         )}
                       </td>
                       <td className="px-4 py-3 text-gray-500">{slotsToLabel(b.duration_slots)}</td>
