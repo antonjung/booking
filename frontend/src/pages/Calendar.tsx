@@ -187,6 +187,17 @@ export default function Calendar() {
     }
   }
 
+  const handleRequestCancellation = async (bookingId: number) => {
+    try {
+      await client.put(`/bookings/${bookingId}/request-cancellation`, {})
+      setSelectedBooking(null)
+      await loadBookings()
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error
+      alert(msg || 'Failed to request cancellation')
+    }
+  }
+
   const handleReschedule = async (bookingId: number, newDate: string, newTime: string) => {
     try {
       await client.patch(`/bookings/${bookingId}`, { date: newDate, start_time: newTime })
@@ -277,6 +288,7 @@ export default function Calendar() {
           onClose={() => setSelectedBooking(null)}
           onNavigate={() => navigate(`/bookings/${selectedBooking.id}`)}
           onCancel={handleCancel}
+          onRequestCancellation={handleRequestCancellation}
         />
       )}
 
@@ -755,23 +767,32 @@ function ListView({ bookings, facilities, onBookingClick }: {
 
 // ─── Booking popup ────────────────────────────────────────────────────────────
 
-function BookingPopup({ booking, facilities, currentUserId, onClose, onNavigate, onCancel }: {
+function BookingPopup({ booking, facilities, currentUserId, onClose, onNavigate, onCancel, onRequestCancellation }: {
   booking: Booking
   facilities: Facility[]
   currentUserId?: string
   onClose: () => void
   onNavigate: () => void
   onCancel: (id: number) => void
+  onRequestCancellation: (id: number) => void
 }) {
-  const [cancelConfirm, setCancelConfirm] = useState(false)
+  const [confirmMode, setConfirmMode] = useState<'cancel' | 'cancel-request' | null>(null)
   const color = getFacilityColor(booking.facility_id, facilities)
-  const statusCls = booking.status === 'approved'
-    ? 'bg-green-100 text-green-700'
-    : booking.status === 'denied'
-    ? 'bg-red-100 text-red-700'
-    : 'bg-amber-100 text-amber-700'
 
-  const canCancel = booking.status === 'pending' && booking.booker_id === currentUserId
+  const statusCls =
+    booking.status === 'approved' ? 'bg-green-100 text-green-700' :
+    booking.status === 'denied' ? 'bg-red-100 text-red-700' :
+    booking.status === 'cancellation_pending' ? 'bg-orange-100 text-orange-700' :
+    booking.status === 'cancelled' ? 'bg-gray-200 text-gray-500' :
+    'bg-amber-100 text-amber-700'
+
+  const statusLabel =
+    booking.status === 'cancellation_pending' ? 'Cancel Pending' :
+    booking.status.charAt(0).toUpperCase() + booking.status.slice(1)
+
+  const isOwn = booking.booker_id === currentUserId
+  const canCancelPending = booking.status === 'pending' && isOwn
+  const canRequestCancellation = booking.status === 'approved' && isOwn
 
   return (
     <div
@@ -787,7 +808,7 @@ function BookingPopup({ booking, facilities, currentUserId, onClose, onNavigate,
             <div className="w-3 h-3 rounded-sm flex-shrink-0" style={{ backgroundColor: color }} />
             <span className="font-semibold text-gray-900 truncate">{booking.facility_name}</span>
             <span className={`text-xs px-1.5 py-0.5 rounded-full font-medium flex-shrink-0 ${statusCls}`}>
-              {booking.status}
+              {statusLabel}
             </span>
           </div>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600 ml-2 flex-shrink-0">
@@ -821,21 +842,28 @@ function BookingPopup({ booking, facilities, currentUserId, onClose, onNavigate,
         </div>
 
         <div className="px-4 pb-4 flex gap-2">
-          {canCancel && !cancelConfirm && (
-            <button onClick={() => setCancelConfirm(true)} className="btn-danger flex-1">
-              Cancel
-            </button>
-          )}
-          {canCancel && cancelConfirm && (
+          {confirmMode === 'cancel' && (
             <>
               <button onClick={() => onCancel(booking.id)} className="btn-danger flex-1">Confirm Cancel</button>
-              <button onClick={() => setCancelConfirm(false)} className="btn-secondary flex-1">Keep</button>
+              <button onClick={() => setConfirmMode(null)} className="btn-secondary flex-1">Keep</button>
             </>
           )}
-          {!cancelConfirm && (
-            <button onClick={onNavigate} className="btn-primary flex-1">
-              View Details
-            </button>
+          {confirmMode === 'cancel-request' && (
+            <>
+              <button onClick={() => onRequestCancellation(booking.id)} className="btn-danger flex-1">Confirm Request</button>
+              <button onClick={() => setConfirmMode(null)} className="btn-secondary flex-1">Keep</button>
+            </>
+          )}
+          {!confirmMode && (
+            <>
+              {canCancelPending && (
+                <button onClick={() => setConfirmMode('cancel')} className="btn-danger flex-1">Cancel</button>
+              )}
+              {canRequestCancellation && (
+                <button onClick={() => setConfirmMode('cancel-request')} className="btn-secondary flex-1">Request Cancel</button>
+              )}
+              <button onClick={onNavigate} className="btn-primary flex-1">View Details</button>
+            </>
           )}
         </div>
       </div>

@@ -40,51 +40,69 @@ serve(async (req: Request) => {
 
   const { data: booking } = await supabase.from('bookings').select('*').eq('id', booking_id).single()
   if (!booking) return json({ error: 'Booking not found' }, 404)
-  if (booking.status !== 'pending') return json({ error: 'Only pending bookings can be approved' }, 400)
+  if (!['pending', 'cancellation_pending'].includes(booking.status)) {
+    return json({ error: 'Only pending or cancellation-pending bookings can be actioned' }, 400)
+  }
 
-  // Conflict check (exclude this booking itself)
-  const { data: existing } = await supabase
-    .from('bookings')
-    .select('*, facility:facilities!facility_id(is_whole_hall, type)')
-    .eq('date', booking.date)
-    .eq('status', 'approved')
-
-  const { data: facility } = await supabase.from('facilities').select('*').eq('id', booking.facility_id).single()
+  const isCancellationApproval = booking.status === 'cancellation_pending'
   const startMin = timeToMinutes(booking.start_time)
   const endMin = startMin + booking.duration_slots * 30
 
-  const hasConflict = (existing || []).some((b: Record<string, unknown>) => {
-    if (b.id === booking_id) return false
-    const bFacility = b.facility as { is_whole_hall: boolean; type: string } | null
-    const existStart = timeToMinutes(b.start_time as string)
-    const existEnd = existStart + (b.duration_slots as number) * 30
-    if (startMin >= existEnd || endMin <= existStart) return false
-    if (b.facility_id === booking.facility_id) return true
-    if (facility?.is_whole_hall && bFacility?.type === 'room') return true
-    if (bFacility?.is_whole_hall && facility?.type === 'room') return true
-    return false
-  })
-  if (hasConflict) return json({ error: 'Cannot approve: conflicts with another approved booking' }, 409)
+  if (!isCancellationApproval) {
+    // Conflict check only needed when approving a new booking
+    const { data: existing } = await supabase
+      .from('bookings')
+      .select('*, facility:facilities!facility_id(is_whole_hall, type)')
+      .eq('date', booking.date)
+      .eq('status', 'approved')
 
+    const { data: facility } = await supabase.from('facilities').select('*').eq('id', booking.facility_id).single()
+
+    const hasConflict = (existing || []).some((b: Record<string, unknown>) => {
+      if (b.id === booking_id) return false
+      const bFacility = b.facility as { is_whole_hall: boolean; type: string } | null
+      const existStart = timeToMinutes(b.start_time as string)
+      const existEnd = existStart + (b.duration_slots as number) * 30
+      if (startMin >= existEnd || endMin <= existStart) return false
+      if (b.facility_id === booking.facility_id) return true
+      if (facility?.is_whole_hall && bFacility?.type === 'room') return true
+      if (bFacility?.is_whole_hall && facility?.type === 'room') return true
+      return false
+    })
+    if (hasConflict) return json({ error: 'Cannot approve: conflicts with another approved booking' }, 409)
+  }
+
+  const newStatus = isCancellationApproval ? 'cancelled' : 'approved'
   await supabase.from('bookings').update({
-    status: 'approved', controller_id: user.id, controller_notes: controller_notes || null
+    status: newStatus, controller_id: user.id, controller_notes: controller_notes || null
   }).eq('id', booking_id)
 
   // Notify booker
   const { data: booker } = await supabase.from('users').select('*').eq('id', booking.booker_id).single()
   const { data: fac } = await supabase.from('facilities').select('name').eq('id', booking.facility_id).single()
   const facilityName = fac?.name || ''
-  const msg = controller_notes
-    ? `Your booking for ${facilityName} on ${booking.date} at ${booking.start_time} has been approved: ${controller_notes}`
-    : `Your booking for ${facilityName} on ${booking.date} at ${booking.start_time} has been approved`
+
+  let msg: string
+  let emailSubject: string
+  if (isCancellationApproval) {
+    msg = controller_notes
+      ? `Your cancellation request for ${facilityName} on ${booking.date} has been approved: ${controller_notes}`
+      : `Your cancellation request for ${facilityName} on ${booking.date} has been approved`
+    emailSubject = `Cancellation Approved: ${facilityName} on ${booking.date}`
+  } else {
+    msg = controller_notes
+      ? `Your booking for ${facilityName} on ${booking.date} at ${booking.start_time} has been approved: ${controller_notes}`
+      : `Your booking for ${facilityName} on ${booking.date} at ${booking.start_time} has been approved`
+    emailSubject = `Booking Approved: ${facilityName} on ${booking.date}`
+  }
 
   if (booker) {
     await supabase.from('notifications').insert({
       user_id: booker.id, booking_id, message: msg, type: 'booking_approved'
     })
     if (booker.contact_preference === 'email' || booker.contact_preference === 'both') {
-      await sendEmail(booker.email, `Booking Approved: ${facilityName} on ${booking.date}`,
-        bookingStatusHtml('approved', facilityName, booking.date, booking.start_time, booking.duration_slots, controller_notes))
+      await sendEmail(booker.email, emailSubject,
+        bookingStatusHtml(newStatus, facilityName, booking.date, booking.start_time, booking.duration_slots, controller_notes))
     }
   }
 

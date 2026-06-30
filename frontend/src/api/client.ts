@@ -141,6 +141,9 @@ async function handlePut(url: string, body?: unknown): Promise<R> {
   const denyMatch = url.match(/^\/bookings\/(\d+)\/deny$/)
   if (denyMatch) return invokeFunction('deny-booking', { booking_id: parseInt(denyMatch[1]), ...(body as object) })
 
+  const cancelRequestMatch = url.match(/^\/bookings\/(\d+)\/request-cancellation$/)
+  if (cancelRequestMatch) return invokeFunction('request-cancellation', { booking_id: parseInt(cancelRequestMatch[1]), ...(body as object) })
+
   const userMatch = url.match(/^\/users\/(.+)$/)
   if (userMatch) return invokeFunction('admin-user', { id: userMatch[1], ...(body as object) }, 'PUT')
 

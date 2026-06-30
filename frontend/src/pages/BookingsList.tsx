@@ -14,8 +14,16 @@ function slotsToLabel(slots: number): string {
 }
 
 function StatusBadge({ status }: { status: string }) {
-  const cls = status === 'approved' ? 'badge-approved' : status === 'denied' ? 'badge-denied' : 'badge-pending'
-  return <span className={cls}>{status.charAt(0).toUpperCase() + status.slice(1)}</span>
+  const cls =
+    status === 'approved' ? 'badge-approved' :
+    status === 'denied' ? 'badge-denied' :
+    status === 'cancellation_pending' ? 'badge-cancellation-pending' :
+    status === 'cancelled' ? 'badge-cancelled' :
+    'badge-pending'
+  const label =
+    status === 'cancellation_pending' ? 'Cancel Pending' :
+    status.charAt(0).toUpperCase() + status.slice(1)
+  return <span className={cls}>{label}</span>
 }
 
 export default function BookingsList() {
@@ -24,6 +32,7 @@ export default function BookingsList() {
   const [facilities, setFacilities] = useState<Facility[]>([])
   const [loading, setLoading] = useState(true)
   const [cancelConfirm, setCancelConfirm] = useState<number | null>(null)
+  const [cancelRequestId, setCancelRequestId] = useState<number | null>(null)
 
   const [filterDate, setFilterDate] = useState('')
   const [filterStatus, setFilterStatus] = useState('')
@@ -61,6 +70,16 @@ export default function BookingsList() {
       await loadBookings()
     } catch (err: unknown) {
       alert((err as { response?: { data?: { error?: string } } })?.response?.data?.error || 'Failed to cancel booking')
+    }
+  }
+
+  const handleCancelRequest = async (id: number) => {
+    try {
+      await client.put(`/bookings/${id}/request-cancellation`, {})
+      setCancelRequestId(null)
+      await loadBookings()
+    } catch (err: unknown) {
+      alert((err as { response?: { data?: { error?: string } } })?.response?.data?.error || 'Failed to request cancellation')
     }
   }
 
@@ -175,6 +194,16 @@ export default function BookingsList() {
                             </>
                           ) : (
                             <button onClick={() => setCancelConfirm(b.id)} className="btn-danger btn-sm">Cancel</button>
+                          )
+                        )}
+                        {b.status === 'approved' && b.booker_id === user?.id && (
+                          cancelRequestId === b.id ? (
+                            <>
+                              <button onClick={() => handleCancelRequest(b.id)} className="btn-danger btn-sm">Confirm</button>
+                              <button onClick={() => setCancelRequestId(null)} className="btn-secondary btn-sm">Keep</button>
+                            </>
+                          ) : (
+                            <button onClick={() => setCancelRequestId(b.id)} className="btn-secondary btn-sm">Request Cancel</button>
                           )
                         )}
                       </div>

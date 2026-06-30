@@ -14,8 +14,14 @@ function slotsToLabel(slots: number): string {
 }
 
 function StatusBadge({ status }: { status: string }) {
-  const cls = status === 'approved' ? 'badge-approved' : status === 'denied' ? 'badge-denied' : 'badge-pending'
-  return <span className={`${cls} text-sm px-3 py-1`}>{status.charAt(0).toUpperCase() + status.slice(1)}</span>
+  const cls =
+    status === 'approved' ? 'badge-approved' :
+    status === 'denied' ? 'badge-denied' :
+    status === 'cancellation_pending' ? 'badge-cancellation-pending' :
+    status === 'cancelled' ? 'badge-cancelled' :
+    'badge-pending'
+  const label = status === 'cancellation_pending' ? 'Cancellation Pending' : status.charAt(0).toUpperCase() + status.slice(1)
+  return <span className={`${cls} text-sm px-3 py-1`}>{label}</span>
 }
 
 export default function BookingDetail() {
@@ -76,7 +82,7 @@ export default function BookingDetail() {
   }
 
   const handleCancel = async () => {
-    if (!confirm('Are you sure you want to cancel this booking?')) return
+    if (!confirm('Are you sure you want to cancel this booking request?')) return
     setActionLoading(true)
     try {
       await client.delete(`/bookings/${id}`)
@@ -84,6 +90,23 @@ export default function BookingDetail() {
     } catch (err: unknown) {
       const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error
       setActionError(msg || 'Failed to cancel booking.')
+      setActionLoading(false)
+    }
+  }
+
+  const handleRequestCancellation = async () => {
+    if (!confirm('Request cancellation of this approved booking? A controller will need to approve it.')) return
+    setActionLoading(true)
+    setActionError('')
+    try {
+      await client.put(`/bookings/${id}/request-cancellation`, {})
+      const res = await client.get('/bookings')
+      const found = res.data.find((b: Booking) => b.id === parseInt(id!))
+      if (found) setBooking(found)
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error
+      setActionError(msg || 'Failed to request cancellation.')
+    } finally {
       setActionLoading(false)
     }
   }
@@ -151,54 +174,63 @@ export default function BookingDetail() {
       {booking.status === 'pending' && isController && (
         <div className="card border-amber-200 bg-amber-50">
           <h2 className="mb-4 text-amber-800">Review Booking</h2>
-
           {actionError && (
-            <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-md text-sm mb-4">
-              {actionError}
-            </div>
+            <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-md text-sm mb-4">{actionError}</div>
           )}
-
           <div className="mb-4">
             <label className="label">Controller Notes (optional)</label>
-            <textarea
-              value={controllerNotes}
-              onChange={e => setControllerNotes(e.target.value)}
-              className="input"
-              rows={2}
-              placeholder="Add notes for the booker..."
-            />
+            <textarea value={controllerNotes} onChange={e => setControllerNotes(e.target.value)}
+              className="input" rows={2} placeholder="Add notes for the booker..." />
           </div>
-
           <div className="flex gap-3">
-            <button
-              onClick={handleApprove}
-              disabled={actionLoading}
-              className="btn-success flex-1"
-            >
-              {actionLoading ? '...' : 'Approve'}
+            <button onClick={handleApprove} disabled={actionLoading} className="btn-success flex-1">
+              {actionLoading ? '…' : 'Approve'}
             </button>
-            <button
-              onClick={handleDeny}
-              disabled={actionLoading}
-              className="btn-danger flex-1"
-            >
-              {actionLoading ? '...' : 'Deny'}
+            <button onClick={handleDeny} disabled={actionLoading} className="btn-danger flex-1">
+              {actionLoading ? '…' : 'Deny'}
             </button>
           </div>
         </div>
       )}
 
-      {/* Decision info (after decision made) */}
-      {booking.status !== 'pending' && booking.controller_name && (
-        <div className={`card ${booking.status === 'approved' ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'}`}>
-          <h2 className={`mb-3 ${booking.status === 'approved' ? 'text-green-800' : 'text-red-800'}`}>
-            {booking.status === 'approved' ? 'Booking Approved' : 'Booking Denied'}
+      {/* Controller review of cancellation request */}
+      {booking.status === 'cancellation_pending' && isController && (
+        <div className="card border-orange-200 bg-orange-50">
+          <h2 className="mb-1 text-orange-800">Cancellation Request</h2>
+          <p className="text-sm text-orange-700 mb-4">The booker has requested to cancel this booking.</p>
+          {actionError && (
+            <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-md text-sm mb-4">{actionError}</div>
+          )}
+          <div className="mb-4">
+            <label className="label">Notes for booker (optional)</label>
+            <textarea value={controllerNotes} onChange={e => setControllerNotes(e.target.value)}
+              className="input" rows={2} placeholder="Reason for your decision…" />
+          </div>
+          <div className="flex gap-3">
+            <button onClick={handleApprove} disabled={actionLoading} className="btn-danger flex-1">
+              {actionLoading ? '…' : 'Approve Cancellation'}
+            </button>
+            <button onClick={handleDeny} disabled={actionLoading} className="btn-success flex-1">
+              {actionLoading ? '…' : 'Keep Booking'}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Decision info */}
+      {['approved', 'denied', 'cancelled'].includes(booking.status) && booking.controller_name && (
+        <div className={`card ${
+          booking.status === 'approved' ? 'bg-green-50 border-green-200' :
+          booking.status === 'cancelled' ? 'bg-gray-50 border-gray-200' :
+          'bg-red-50 border-red-200'
+        }`}>
+          <h2 className={`mb-3 ${booking.status === 'approved' ? 'text-green-800' : booking.status === 'cancelled' ? 'text-gray-700' : 'text-red-800'}`}>
+            {booking.status === 'approved' ? 'Booking Approved' :
+             booking.status === 'cancelled' ? 'Booking Cancelled' : 'Booking Denied'}
           </h2>
           <dl className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <InfoField label="Reviewed by" value={booking.controller_name} />
-            {booking.controller_notes && (
-              <InfoField label="Notes" value={booking.controller_notes} wide />
-            )}
+            {booking.controller_notes && <InfoField label="Notes" value={booking.controller_notes} wide />}
           </dl>
         </div>
       )}
@@ -206,12 +238,17 @@ export default function BookingDetail() {
       {/* Cancel button for booker (own pending booking) */}
       {isOwner && booking.status === 'pending' && (
         <div className="flex justify-end">
-          <button
-            onClick={handleCancel}
-            disabled={actionLoading}
-            className="btn-danger"
-          >
-            {actionLoading ? 'Cancelling...' : 'Cancel Booking Request'}
+          <button onClick={handleCancel} disabled={actionLoading} className="btn-danger">
+            {actionLoading ? 'Cancelling…' : 'Cancel Booking Request'}
+          </button>
+        </div>
+      )}
+
+      {/* Request cancellation for own approved booking */}
+      {isOwner && booking.status === 'approved' && (
+        <div className="flex justify-end">
+          <button onClick={handleRequestCancellation} disabled={actionLoading} className="btn-secondary">
+            {actionLoading ? 'Requesting…' : 'Request Cancellation'}
           </button>
         </div>
       )}

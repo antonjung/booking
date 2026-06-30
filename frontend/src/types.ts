@@ -35,7 +35,7 @@ export interface Booking {
   start_time: string;
   duration_slots: number;
   end_time: string;
-  status: 'pending' | 'approved' | 'denied';
+  status: 'pending' | 'approved' | 'denied' | 'cancellation_pending' | 'cancelled';
   notes?: string;
   controller_id?: string;
   controller_name?: string;

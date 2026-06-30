@@ -14,8 +14,14 @@ function slotsToLabel(slots: number): string {
 }
 
 function StatusBadge({ status }: { status: string }) {
-  const cls = status === 'approved' ? 'badge-approved' : status === 'denied' ? 'badge-denied' : 'badge-pending'
-  return <span className={cls}>{status}</span>
+  const cls =
+    status === 'approved' ? 'badge-approved' :
+    status === 'denied' ? 'badge-denied' :
+    status === 'cancellation_pending' ? 'badge-cancellation-pending' :
+    status === 'cancelled' ? 'badge-cancelled' :
+    'badge-pending'
+  const label = status === 'cancellation_pending' ? 'Cancel Pending' : status
+  return <span className={cls}>{label}</span>
 }
 
 export default function Dashboard() {

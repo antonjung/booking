@@ -40,26 +40,43 @@ serve(async (req: Request) => {
 
   const { data: booking } = await supabase.from('bookings').select('*').eq('id', booking_id).single()
   if (!booking) return json({ error: 'Booking not found' }, 404)
-  if (booking.status !== 'pending') return json({ error: 'Only pending bookings can be denied' }, 400)
+  if (!['pending', 'cancellation_pending'].includes(booking.status)) {
+    return json({ error: 'Only pending or cancellation-pending bookings can be actioned' }, 400)
+  }
+
+  const isCancellationDenial = booking.status === 'cancellation_pending'
+  // Denying a cancellation request puts the booking back to approved
+  const newStatus = isCancellationDenial ? 'approved' : 'denied'
 
   await supabase.from('bookings').update({
-    status: 'denied', controller_id: user.id, controller_notes: controller_notes || null
+    status: newStatus, controller_id: user.id, controller_notes: controller_notes || null
   }).eq('id', booking_id)
 
   const { data: booker } = await supabase.from('users').select('*').eq('id', booking.booker_id).single()
   const { data: fac } = await supabase.from('facilities').select('name').eq('id', booking.facility_id).single()
   const facilityName = fac?.name || ''
-  const msg = controller_notes
-    ? `Your booking for ${facilityName} on ${booking.date} at ${booking.start_time} has been denied: ${controller_notes}`
-    : `Your booking for ${facilityName} on ${booking.date} at ${booking.start_time} has been denied`
+
+  let msg: string
+  let emailSubject: string
+  if (isCancellationDenial) {
+    msg = controller_notes
+      ? `Your cancellation request for ${facilityName} on ${booking.date} has been declined: ${controller_notes}`
+      : `Your cancellation request for ${facilityName} on ${booking.date} has been declined — the booking remains confirmed`
+    emailSubject = `Cancellation Declined: ${facilityName} on ${booking.date}`
+  } else {
+    msg = controller_notes
+      ? `Your booking for ${facilityName} on ${booking.date} at ${booking.start_time} has been denied: ${controller_notes}`
+      : `Your booking for ${facilityName} on ${booking.date} at ${booking.start_time} has been denied`
+    emailSubject = `Booking Denied: ${facilityName} on ${booking.date}`
+  }
 
   if (booker) {
     await supabase.from('notifications').insert({
       user_id: booker.id, booking_id, message: msg, type: 'booking_denied'
     })
     if (booker.contact_preference === 'email' || booker.contact_preference === 'both') {
-      await sendEmail(booker.email, `Booking Denied: ${facilityName} on ${booking.date}`,
-        bookingStatusHtml('denied', facilityName, booking.date, booking.start_time, booking.duration_slots, controller_notes))
+      await sendEmail(booker.email, emailSubject,
+        bookingStatusHtml(newStatus, facilityName, booking.date, booking.start_time, booking.duration_slots, controller_notes))
     }
   }
 
