@@ -29,6 +29,7 @@ export interface Booking {
   booker_name: string;
   booker_email: string;
   booker_organisation?: string;
+  organisation?: string;
   date: string;
   start_time: string;
   duration_slots: number;

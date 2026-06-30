@@ -24,6 +24,7 @@ function flattenBooking(b: Record<string, unknown>) {
     booker_name: booker?.name ?? '',
     booker_email: booker?.email ?? '',
     booker_organisation: booker?.organisation,
+    organisation: b.organisation ?? booker?.organisation ?? null,
     controller_name: controller?.name,
     end_time: minutesToTime(endMin),
     facility: undefined,

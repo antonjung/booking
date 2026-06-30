@@ -1,9 +1,9 @@
 import { useState, useEffect, useMemo, useRef } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useLocation } from 'react-router-dom'
 import {
   format, startOfMonth, endOfMonth, startOfWeek, endOfWeek,
   eachDayOfInterval, addMonths, subMonths, addWeeks, subWeeks,
-  addDays, subDays, isSameMonth, isSameDay,
+  addDays, subDays, isSameMonth, isSameDay, parseISO,
 } from 'date-fns'
 import client from '../api/client'
 import { useAuth } from '../contexts/AuthContext'
@@ -51,7 +51,12 @@ function bookingPos(b: Booking, slotPx = SLOT_PX) {
 }
 
 function bookerLabel(b: Booking) {
-  return b.booker_organisation ? `${b.booker_name} · ${b.booker_organisation}` : b.booker_name
+  const org = b.organisation || b.booker_organisation
+  return org ? `${b.booker_name} · ${org}` : b.booker_name
+}
+
+function displayOrg(b: Booking) {
+  return b.organisation || b.booker_organisation || b.booker_name
 }
 
 function yToTime(offsetY: number, slotPx = SLOT_PX): string {
@@ -68,12 +73,21 @@ function yToTime(offsetY: number, slotPx = SLOT_PX): string {
 export default function Calendar() {
   const { user } = useAuth()
   const navigate = useNavigate()
-  const [view, setView] = useState<View>('month')
-  const [currentDate, setCurrentDate] = useState(new Date())
+  const location = useLocation()
+  const locState = location.state as { initialDate?: string; initialView?: View } | null
+  const [view, setView] = useState<View>(locState?.initialView ?? 'month')
+  const [currentDate, setCurrentDate] = useState(() => {
+    if (locState?.initialDate) {
+      const d = new Date(locState.initialDate + 'T00:00:00')
+      if (!isNaN(d.getTime())) return d
+    }
+    return new Date()
+  })
   const [bookings, setBookings] = useState<Booking[]>([])
   const [facilities, setFacilities] = useState<Facility[]>([])
   const [loading, setLoading] = useState(true)
   const [facilityFilter, setFacilityFilter] = useState<number | null>(null)
+  const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null)
   const [slide, setSlide] = useState({ x: 0, opacity: 1, anim: false })
   const touchStartX = useRef<number | null>(null)
   const touchStartY = useRef<number | null>(null)
@@ -149,7 +163,10 @@ export default function Calendar() {
     return 'All Bookings'
   }, [view, currentDate])
 
-  const onBookingClick = (id: number) => navigate(`/bookings/${id}`)
+  const onBookingClick = (id: number) => {
+    const booking = filteredBookings.find(b => b.id === id)
+    if (booking) setSelectedBooking(booking)
+  }
   const onNewBooking = (date?: string) =>
     navigate(date ? `/bookings/new?date=${date}` : '/bookings/new')
 
@@ -240,6 +257,15 @@ export default function Calendar() {
           <button onClick={() => onNewBooking()} className="btn-primary">+ New</button>
         </div>
       </div>
+
+      {selectedBooking && (
+        <BookingPopup
+          booking={selectedBooking}
+          facilities={facilities}
+          onClose={() => setSelectedBooking(null)}
+          onNavigate={() => navigate(`/bookings/${selectedBooking.id}`)}
+        />
+      )}
 
       {loading ? (
         <div className="flex justify-center py-20">
@@ -366,7 +392,7 @@ function BookingBlock({ b, facilities, onClick, isDraggable, onDragStart, onDrag
     >
       {height >= slotPx * 2 && (
         <span className="text-white text-[9px] leading-none px-0.5 pt-0.5 block truncate">
-          {b.booker_organisation || b.booker_name}
+          {displayOrg(b)}
         </span>
       )}
     </div>
@@ -445,7 +471,7 @@ function MonthView({ currentDate, bookingsByDate, facilities, todayMidnight, onB
                         className="h-6 rounded cursor-pointer hover:opacity-80 transition-opacity flex items-center px-1.5 overflow-hidden"
                       >
                         <span className="text-white text-xs truncate leading-none">
-                          {b.booker_organisation || b.booker_name}
+                          {displayOrg(b)}
                         </span>
                       </div>
                     )
@@ -710,6 +736,78 @@ function ListView({ bookings, facilities, onBookingClick }: {
           </div>
         </div>
       ))}
+    </div>
+  )
+}
+
+// ─── Booking popup ────────────────────────────────────────────────────────────
+
+function BookingPopup({ booking, facilities, onClose, onNavigate }: {
+  booking: Booking
+  facilities: Facility[]
+  onClose: () => void
+  onNavigate: () => void
+}) {
+  const color = getFacilityColor(booking.facility_id, facilities)
+  const statusCls = booking.status === 'approved'
+    ? 'bg-green-100 text-green-700'
+    : booking.status === 'denied'
+    ? 'bg-red-100 text-red-700'
+    : 'bg-amber-100 text-amber-700'
+
+  return (
+    <div
+      className="fixed inset-0 bg-black/50 z-50 flex items-end sm:items-center justify-center p-4"
+      onClick={onClose}
+    >
+      <div
+        className="bg-white rounded-xl shadow-xl w-full max-w-sm"
+        onClick={e => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between px-4 pt-4 pb-3 border-b border-gray-100">
+          <div className="flex items-center gap-2 min-w-0">
+            <div className="w-3 h-3 rounded-sm flex-shrink-0" style={{ backgroundColor: color }} />
+            <span className="font-semibold text-gray-900 truncate">{booking.facility_name}</span>
+            <span className={`text-xs px-1.5 py-0.5 rounded-full font-medium flex-shrink-0 ${statusCls}`}>
+              {booking.status}
+            </span>
+          </div>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 ml-2 flex-shrink-0">
+            <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+
+        <div className="px-4 py-3 space-y-1.5">
+          <div className="text-sm font-medium text-gray-800">
+            {format(parseISO(booking.date), 'EEEE, d MMMM yyyy')}
+          </div>
+          <div className="text-sm text-gray-600">
+            {booking.start_time} – {booking.end_time} · {slotsToLabel(booking.duration_slots)}
+          </div>
+          <div className="text-sm text-gray-600">
+            {booking.booker_name}
+            {(booking.organisation || booking.booker_organisation) && (
+              <span className="text-gray-500"> · {booking.organisation || booking.booker_organisation}</span>
+            )}
+          </div>
+          {booking.notes && (
+            <div className="text-sm text-gray-500 italic pt-1">{booking.notes}</div>
+          )}
+          {booking.controller_notes && (
+            <div className="text-sm text-gray-500 border-t border-gray-100 pt-2 mt-1">
+              <span className="font-medium text-gray-600">Controller note:</span> {booking.controller_notes}
+            </div>
+          )}
+        </div>
+
+        <div className="px-4 pb-4">
+          <button onClick={onNavigate} className="btn-primary w-full">
+            View Details
+          </button>
+        </div>
+      </div>
     </div>
   )
 }

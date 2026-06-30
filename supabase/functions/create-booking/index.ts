@@ -33,7 +33,7 @@ serve(async (req: Request) => {
   const { data: { user }, error: authErr } = await supabase.auth.getUser(token)
   if (authErr || !user) return json({ error: 'Unauthorized' }, 401)
 
-  const { facility_id, date, start_time, duration_slots, notes } = await req.json()
+  const { facility_id, date, start_time, duration_slots, notes, organisation } = await req.json()
 
   if (!facility_id || !date || !start_time || !duration_slots)
     return json({ error: 'facility_id, date, start_time, and duration_slots are required' }, 400)
@@ -70,7 +70,7 @@ serve(async (req: Request) => {
 
   const { data: booking, error: bookErr } = await supabase
     .from('bookings')
-    .insert({ facility_id, booker_id: user.id, date, start_time, duration_slots, notes: notes || null, status: 'pending' })
+    .insert({ facility_id, booker_id: user.id, date, start_time, duration_slots, notes: notes || null, organisation: organisation || null, status: 'pending' })
     .select(`*, facility:facilities!facility_id(name, color), booker:users!fk_bookings_booker(name, email, organisation), controller:users!fk_bookings_controller(name)`)
     .single()
 
