@@ -111,7 +111,7 @@ export default function Login() {
         </form>
 
         <p className="text-center text-xs text-gray-300 mt-6">
-          v1.1.0
+          v1.1.1
         </p>
       </div>
     </div>
