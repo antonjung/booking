@@ -1,10 +1,19 @@
 import { Outlet, NavLink, useNavigate } from 'react-router-dom'
+import { useState, useEffect } from 'react'
 import { useAuth } from '../contexts/AuthContext'
 import NotificationBell from './NotificationBell'
+import client from '../api/client'
 
 export default function Layout() {
   const { user, logout } = useAuth()
   const navigate = useNavigate()
+  const [pendingRegistrations, setPendingRegistrations] = useState(0)
+
+  useEffect(() => {
+    if (user?.role === 'admin' || user?.role === 'controller') {
+      client.get('/registrations/count').then(r => setPendingRegistrations(r.data.count)).catch(() => {})
+    }
+  }, [user?.role])
 
   const handleLogout = () => {
     logout()
@@ -64,6 +73,18 @@ export default function Layout() {
         <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
             d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
+        </svg>
+      ),
+    },
+    {
+      to: '/admin/registrations',
+      label: 'Requests',
+      badge: pendingRegistrations > 0 ? pendingRegistrations : undefined,
+      show: user?.role === 'admin' || user?.role === 'controller',
+      icon: (
+        <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+            d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
         </svg>
       ),
     },
@@ -150,7 +171,14 @@ export default function Layout() {
                 end={link.to === '/'}
                 className={footerLinkClass}
               >
-                {link.icon}
+                <div className="relative">
+                  {link.icon}
+                  {'badge' in link && link.badge && (
+                    <span className="absolute -top-1 -right-1 min-w-[16px] h-4 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center px-0.5">
+                      {link.badge}
+                    </span>
+                  )}
+                </div>
                 <span>{link.label}</span>
               </NavLink>
             ))}

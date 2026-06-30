@@ -111,6 +111,21 @@ async function handleGet(url: string): Promise<R> {
     return { data: (data || []).map(n => flattenNotification(n as Record<string, unknown>)) }
   }
 
+  if (path === '/registrations') {
+    let q = supabase.from('registration_requests').select('*')
+    if (params.get('status')) q = q.eq('status', params.get('status')!)
+    const { data, error } = await q.order('created_at', { ascending: false })
+    if (error) dbErr(error)
+    return { data: data || [] }
+  }
+
+  if (path === '/registrations/count') {
+    const { count, error } = await supabase
+      .from('registration_requests').select('*', { count: 'exact', head: true }).eq('status', 'pending')
+    if (error) dbErr(error)
+    return { data: { count: count || 0 } }
+  }
+
   if (path === '/notifications/count') {
     const { count, error } = await supabase
       .from('notifications').select('*', { count: 'exact', head: true }).eq('read', false)
@@ -143,6 +158,13 @@ async function handlePut(url: string, body?: unknown): Promise<R> {
 
   const cancelRequestMatch = url.match(/^\/bookings\/(\d+)\/request-cancellation$/)
   if (cancelRequestMatch) return invokeFunction('request-cancellation', { booking_id: parseInt(cancelRequestMatch[1]), ...(body as object) })
+
+  const regApproveMatch = url.match(/^\/registrations\/(\d+)\/(approve|deny)$/)
+  if (regApproveMatch) return invokeFunction('review-registration', {
+    request_id: parseInt(regApproveMatch[1]),
+    action: regApproveMatch[2],
+    ...(body as object),
+  })
 
   const userMatch = url.match(/^\/users\/(.+)$/)
   if (userMatch) return invokeFunction('admin-user', { id: userMatch[1], ...(body as object) }, 'PUT')

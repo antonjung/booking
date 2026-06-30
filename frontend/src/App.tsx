@@ -2,6 +2,7 @@ import { Routes, Route, Navigate } from 'react-router-dom'
 import { useAuth } from './contexts/AuthContext'
 import Layout from './components/Layout'
 import Login from './pages/Login'
+import Register from './pages/Register'
 import Dashboard from './pages/Dashboard'
 import BookingsList from './pages/BookingsList'
 import NewBooking from './pages/NewBooking'
@@ -9,6 +10,7 @@ import BookingDetail from './pages/BookingDetail'
 import ControllerPanel from './pages/ControllerPanel'
 import AdminUsers from './pages/AdminUsers'
 import AdminFacilities from './pages/AdminFacilities'
+import AdminRegistrations from './pages/AdminRegistrations'
 import Profile from './pages/Profile'
 import Calendar from './pages/Calendar'
 
@@ -55,6 +57,8 @@ export default function App() {
         element={user ? <Navigate to="/" replace /> : <Login />}
       />
 
+      <Route path="/register" element={<Register />} />
+
       <Route
         path="/"
         element={
@@ -89,6 +93,14 @@ export default function App() {
           element={
             <RequireAuth roles={['admin']}>
               <AdminFacilities />
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="admin/registrations"
+          element={
+            <RequireAuth roles={['admin', 'controller']}>
+              <AdminRegistrations />
             </RequireAuth>
           }
         />

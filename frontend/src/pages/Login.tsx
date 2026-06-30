@@ -1,4 +1,5 @@
 import { useState, FormEvent } from 'react'
+import { Link } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 
 export default function Login() {
@@ -110,7 +111,12 @@ export default function Login() {
           </button>
         </form>
 
-        <p className="text-center text-xs text-gray-300 mt-6">
+        <p className="text-center text-sm text-gray-500 mt-4">
+          Don't have an account?{' '}
+          <Link to="/register" className="text-primary-600 hover:text-primary-800 font-medium">Request access</Link>
+        </p>
+
+        <p className="text-center text-xs text-gray-300 mt-4">
           v1.2.0
         </p>
       </div>

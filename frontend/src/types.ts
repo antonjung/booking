@@ -44,6 +44,20 @@ export interface Booking {
   updated_at: string;
 }
 
+export interface RegistrationRequest {
+  id: number;
+  name: string;
+  email: string;
+  phone?: string;
+  organisation?: string;
+  notes?: string;
+  status: 'pending' | 'approved' | 'denied';
+  reviewed_by?: string;
+  denial_reason?: string;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface AppNotification {
   id: number;
   booking_id?: number;
