@@ -3,11 +3,12 @@ A PWA app to manage room bookings at a village hall. Configurable for any venue 
 
 # tech stack
 - **Frontend**: React + Vite + TypeScript + Tailwind CSS, deployed to Cloudflare Pages (`booking-9c3.pages.dev`)
-- **Backend**: Node.js + Express + TypeScript + SQLite (better-sqlite3), deployed to Fly.io (`antonjung-booking-api`)
-- **Auth**: JWT, stored in localStorage
+- **Database/Auth/API**: Supabase (PostgreSQL + Auth + Edge Functions) at `https://urncbgicbxjwniebfjgt.supabase.co`
 - **Deploy frontend**: `npm run build` then `npx wrangler pages deploy dist --project-name booking` (from `frontend/`)
-- **Deploy backend**: `fly deploy` (from `backend/`)
+- **Deploy Edge Functions**: `supabase functions deploy <name>` (from repo root, requires Supabase CLI)
 - Cloudflare Pages also auto-deploys on push to GitHub (`master` branch)
+- Login uses **email** (not username) — auth managed by Supabase Auth
+- User role stored in `auth.users.app_metadata.role` (synced by `admin-user` Edge Function) and in `public.users.role`
 
 # user roles
 - **admin** — manage users and facilities; can make bookings
@@ -28,7 +29,7 @@ Profile: name, email, phone, organisation, contact preference (email / notificat
 
 # facilities
 - Types: `room`, `service`, `equipment`
-- `is_whole_hall = 1` marks a facility that represents the entire venue (requires all rooms free)
+- `is_whole_hall = true` marks a facility that represents the entire venue (requires all rooms free)
 - Whole-hall bookings appear in calendar when a `room`-type facility is filtered, but not when a service/equipment facility is filtered
 
 # calendar (home screen `/`)
@@ -58,6 +59,14 @@ Current: `v1.0.6` (shown in top navbar and login screen)
 - `frontend/src/pages/BookingDetail.tsx` — view/edit single booking
 - `frontend/src/pages/ControllerPanel.tsx` — approve/deny queue
 - `frontend/src/components/Layout.tsx` — nav shell
+- `frontend/src/api/client.ts` — compatibility wrapper: maps old Express-style routes to Supabase queries/Edge Functions
+- `frontend/src/lib/supabase.ts` — Supabase JS client (URL + anon key from env)
+- `frontend/src/contexts/AuthContext.tsx` — Supabase Auth (email+password login, session management)
 - `frontend/wrangler.jsonc` — Cloudflare Pages config (`pages_build_output_dir: "dist"`)
-- `backend/src/routes/bookings.ts` — booking CRUD including PATCH reschedule
-- `backend/src/routes/facilities.ts` — facility CRUD
+- `supabase/migrations/001_initial_schema.sql` — PostgreSQL schema + RLS policies
+- `supabase/functions/create-booking/` — conflict detection + notification on new booking
+- `supabase/functions/approve-booking/` — approve + notify booker
+- `supabase/functions/deny-booking/` — deny + notify booker
+- `supabase/functions/reschedule-booking/` — reschedule with conflict check
+- `supabase/functions/admin-user/` — create/update/delete Supabase Auth users (admin only)
+- `supabase/functions/_shared/` — shared CORS headers and email utilities (nodemailer/Gmail)

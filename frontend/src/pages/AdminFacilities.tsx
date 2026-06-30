@@ -64,8 +64,8 @@ export default function AdminFacilities() {
       description: f.description || '',
       type: f.type,
       capacity: f.capacity ? String(f.capacity) : '',
-      is_whole_hall: f.is_whole_hall === 1,
-      active: f.active === 1,
+      is_whole_hall: !!f.is_whole_hall,
+      active: !!f.active,
       color: f.color || '#2563eb',
     })
     setFormError('')
@@ -140,10 +140,10 @@ export default function AdminFacilities() {
               </thead>
               <tbody className="divide-y divide-gray-100">
                 {facilities.map(f => (
-                  <tr key={f.id} className={`hover:bg-gray-50 ${f.active === 0 ? 'opacity-50' : ''}`}>
+                  <tr key={f.id} className={`hover:bg-gray-50 ${!f.active ? 'opacity-50' : ''}`}>
                     <td className="px-4 py-3">
                       <div className="font-medium">{f.name}</div>
-                      {f.is_whole_hall === 1 && (
+                      {f.is_whole_hall && (
                         <span className="text-xs text-indigo-600">Whole Hall</span>
                       )}
                     </td>

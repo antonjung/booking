@@ -3,7 +3,7 @@ import { useAuth } from '../contexts/AuthContext'
 
 export default function Login() {
   const { login } = useAuth()
-  const [username, setUsername] = useState('')
+  const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
@@ -14,7 +14,7 @@ export default function Login() {
     setLoading(true)
 
     try {
-      await login(username, password)
+      await login(email, password)
     } catch (err: unknown) {
       const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error
       setError(msg || 'Failed to sign in. Please check your credentials.')
@@ -46,15 +46,15 @@ export default function Login() {
           )}
 
           <div>
-            <label htmlFor="username" className="label">Username</label>
+            <label htmlFor="email" className="label">Email</label>
             <input
-              id="username"
-              type="text"
-              value={username}
-              onChange={e => setUsername(e.target.value)}
+              id="email"
+              type="email"
+              value={email}
+              onChange={e => setEmail(e.target.value)}
               className="input"
-              placeholder="Enter your username"
-              autoComplete="username"
+              placeholder="Enter your email"
+              autoComplete="email"
               required
             />
           </div>
@@ -90,11 +90,8 @@ export default function Login() {
           </button>
         </form>
 
-        <p className="text-center text-xs text-gray-400 mt-6">
-          Default admin login: admin / admin123
-        </p>
-        <p className="text-center text-xs text-gray-300 mt-2">
-          v1.0.6 · api: {import.meta.env.VITE_API_URL || '(relative)'}
+        <p className="text-center text-xs text-gray-300 mt-6">
+          v1.0.6
         </p>
       </div>
     </div>

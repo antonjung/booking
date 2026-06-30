@@ -79,13 +79,13 @@ export default function NotificationBell() {
 
   const markRead = async (id: number) => {
     await client.put(`/notifications/${id}/read`)
-    setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: 1 } : n))
+    setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true } : n))
     setCount(prev => Math.max(0, prev - 1))
   }
 
   const markAllRead = async () => {
     await client.put('/notifications/read-all')
-    setNotifications(prev => prev.map(n => ({ ...n, read: 1 })))
+    setNotifications(prev => prev.map(n => ({ ...n, read: true })))
     setCount(0)
   }
 

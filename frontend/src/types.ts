@@ -1,5 +1,5 @@
 export interface User {
-  id: number;
+  id: string;
   username: string;
   email: string;
   name: string;
@@ -16,8 +16,8 @@ export interface Facility {
   description?: string;
   type: 'room' | 'equipment' | 'service';
   capacity?: number;
-  is_whole_hall: number;
-  active: number;
+  is_whole_hall: boolean;
+  active: boolean;
   color?: string;
 }
 
@@ -25,7 +25,7 @@ export interface Booking {
   id: number;
   facility_id: number;
   facility_name: string;
-  booker_id: number;
+  booker_id: string;
   booker_name: string;
   booker_email: string;
   booker_organisation?: string;
@@ -35,7 +35,7 @@ export interface Booking {
   end_time: string;
   status: 'pending' | 'approved' | 'denied';
   notes?: string;
-  controller_id?: number;
+  controller_id?: string;
   controller_name?: string;
   controller_notes?: string;
   created_at: string;
@@ -47,7 +47,7 @@ export interface AppNotification {
   booking_id?: number;
   message: string;
   type: string;
-  read: number;
+  read: boolean;
   created_at: string;
   booking_date?: string;
   booking_start_time?: string;

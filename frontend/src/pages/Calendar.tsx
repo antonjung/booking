@@ -97,7 +97,7 @@ export default function Calendar() {
   const filteredBookings = useMemo(() => {
     if (!facilityFilter) return activeBookings
     const selectedFacility = facilities.find(f => f.id === facilityFilter)
-    const wholeHallIds = new Set(facilities.filter(f => f.is_whole_hall === 1).map(f => f.id))
+    const wholeHallIds = new Set(facilities.filter(f => f.is_whole_hall).map(f => f.id))
     return activeBookings.filter(b =>
       b.facility_id === facilityFilter ||
       (selectedFacility?.type === 'room' && wholeHallIds.has(b.facility_id))

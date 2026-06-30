@@ -31,7 +31,7 @@ export default function AdminUsers() {
   const [form, setForm] = useState<UserForm>(emptyForm)
   const [formError, setFormError] = useState('')
   const [formLoading, setFormLoading] = useState(false)
-  const [deleteConfirm, setDeleteConfirm] = useState<number | null>(null)
+  const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null)
 
   const load = async () => {
     setLoading(true)
@@ -106,7 +106,7 @@ export default function AdminUsers() {
     }
   }
 
-  const handleDelete = async (id: number) => {
+  const handleDelete = async (id: string) => {
     try {
       await client.delete(`/users/${id}`)
       setDeleteConfirm(null)
