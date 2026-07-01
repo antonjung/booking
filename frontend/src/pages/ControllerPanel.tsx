@@ -19,16 +19,20 @@ type RowAction = 'approve' | 'deny' | 'skip'
 function BulkReviewModal({ bookings, onClose, onSubmit }: {
   bookings: Booking[]
   onClose: () => void
-  onSubmit: (actions: { id: number; action: 'approve' | 'deny' }[], notes: string) => Promise<void>
+  onSubmit: (actions: { id: number; action: 'approve' | 'deny'; notes: string }[]) => Promise<void>
 }) {
   const [rowActions, setRowActions] = useState<Record<number, RowAction>>(
     () => Object.fromEntries(bookings.map(b => [b.id, 'approve' as RowAction]))
   )
   const [notes, setNotes] = useState('')
+  const [rowNotes, setRowNotes] = useState<Record<number, string>>({})
+  const [rowNoteOpen, setRowNoteOpen] = useState<Record<number, boolean>>({})
   const [loading, setLoading] = useState(false)
 
   const setAll = (a: RowAction) => setRowActions(Object.fromEntries(bookings.map(b => [b.id, a])))
   const toggle = (id: number, a: RowAction) => setRowActions(prev => ({ ...prev, [id]: a }))
+  const toggleRowNote = (id: number) => setRowNoteOpen(prev => ({ ...prev, [id]: !prev[id] }))
+  const setRowNote = (id: number, val: string) => setRowNotes(prev => ({ ...prev, [id]: val }))
 
   const approveCount = Object.values(rowActions).filter(a => a === 'approve').length
   const denyCount = Object.values(rowActions).filter(a => a === 'deny').length
@@ -38,8 +42,12 @@ function BulkReviewModal({ bookings, onClose, onSubmit }: {
     setLoading(true)
     const actions = Object.entries(rowActions)
       .filter(([, a]) => a !== 'skip')
-      .map(([id, a]) => ({ id: parseInt(id), action: a as 'approve' | 'deny' }))
-    await onSubmit(actions, notes)
+      .map(([id, a]) => ({
+        id: parseInt(id),
+        action: a as 'approve' | 'deny',
+        notes: rowNotes[parseInt(id)]?.trim() || notes,
+      }))
+    await onSubmit(actions)
     setLoading(false)
   }
 
@@ -104,17 +112,30 @@ function BulkReviewModal({ bookings, onClose, onSubmit }: {
         {/* Date rows */}
         <div className="overflow-y-auto flex-1 divide-y divide-gray-100">
           {bookings.map((b, i) => (
-            <div key={b.id} className={`px-5 py-3 flex items-center gap-3 ${rowActions[b.id] === 'skip' ? 'opacity-40' : ''}`}>
-              <span className="text-gray-400 text-xs w-5 text-right flex-shrink-0">{i + 1}.</span>
-              <div className="flex-1 min-w-0">
-                <div className="font-medium text-sm text-gray-900">{format(new Date(b.date), 'EEEE d MMM yyyy')}</div>
-                <div className="text-xs text-gray-400">{b.start_time}–{b.end_time} · {slotsToLabel(b.duration_slots)}</div>
+            <div key={b.id} className={`px-5 py-3 ${rowActions[b.id] === 'skip' ? 'opacity-40' : ''}`}>
+              <div className="flex items-center gap-3">
+                <span className="text-gray-400 text-xs w-5 text-right flex-shrink-0">{i + 1}.</span>
+                <div className="flex-1 min-w-0">
+                  <div className="font-medium text-sm text-gray-900">{format(new Date(b.date), 'EEEE d MMM yyyy')}</div>
+                  <div className="text-xs text-gray-400">{b.start_time}–{b.end_time} · {slotsToLabel(b.duration_slots)}</div>
+                </div>
+                <div className="flex items-center gap-1 flex-shrink-0">
+                  {actionBtn(b.id, 'approve', 'Approve', 'bg-green-600 text-white', 'bg-gray-100 text-gray-600 hover:bg-gray-200')}
+                  {actionBtn(b.id, 'deny', 'Deny', 'bg-red-600 text-white', 'bg-gray-100 text-gray-600 hover:bg-gray-200')}
+                  {actionBtn(b.id, 'skip', 'Skip', 'bg-gray-400 text-white', 'bg-gray-100 text-gray-600 hover:bg-gray-200')}
+                  <button type="button" onClick={() => toggleRowNote(b.id)}
+                    className={`px-2.5 py-1 text-xs rounded font-medium transition-colors ${rowNotes[b.id] ? 'bg-amber-100 text-amber-800' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
+                    {rowNotes[b.id] ? 'Note ✓' : '+ Note'}
+                  </button>
+                </div>
               </div>
-              <div className="flex items-center gap-1 flex-shrink-0">
-                {actionBtn(b.id, 'approve', 'Approve', 'bg-green-600 text-white', 'bg-gray-100 text-gray-600 hover:bg-gray-200')}
-                {actionBtn(b.id, 'deny', 'Deny', 'bg-red-600 text-white', 'bg-gray-100 text-gray-600 hover:bg-gray-200')}
-                {actionBtn(b.id, 'skip', 'Skip', 'bg-gray-400 text-white', 'bg-gray-100 text-gray-600 hover:bg-gray-200')}
-              </div>
+              {rowNoteOpen[b.id] && (
+                <div className="mt-2 ml-8">
+                  <textarea value={rowNotes[b.id] || ''} onChange={e => setRowNote(b.id, e.target.value)}
+                    className="input text-sm" rows={2}
+                    placeholder="Note for this date only — overrides the shared note below" />
+                </div>
+              )}
             </div>
           ))}
         </div>
@@ -122,7 +143,7 @@ function BulkReviewModal({ bookings, onClose, onSubmit }: {
         {/* Footer */}
         <div className="px-5 py-4 border-t space-y-3">
           <div>
-            <label className="label">Notes for booker (optional — applied to all approved/denied)</label>
+            <label className="label">Note for booker (optional — will be applied to every booking above, unless a date has its own note set)</label>
             <textarea value={notes} onChange={e => setNotes(e.target.value)}
               className="input" rows={2} placeholder="Reason, conditions, or confirmation details…" />
           </div>
@@ -362,12 +383,11 @@ export default function ControllerPanel() {
   }
 
   const handleBulkMixed = async (
-    actions: { id: number; action: 'approve' | 'deny' }[],
-    notes: string
+    actions: { id: number; action: 'approve' | 'deny'; notes: string }[]
   ) => {
     setActionError('')
     const errors: string[] = []
-    for (const { id, action } of actions) {
+    for (const { id, action, notes } of actions) {
       try {
         await client.put(`/bookings/${id}/${action}`, { controller_notes: notes || undefined })
       } catch (err: unknown) {
